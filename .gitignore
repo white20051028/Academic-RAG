@@ -1,0 +1,34 @@
+# ---- 数据：能重建的不进仓库 ----
+# Chroma 向量库，跑一遍 tools/build_index.py 就能重建
+data/chroma/
+
+# 原始文件（54MB）：PDF/DOC/RAR，可以从 processed 重建，也涉及版权
+data/raw/
+
+# 从教务系统导出的个人文件（含姓名、学号、成绩），绝不公开
+data/user/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# ---- 环境与密钥 ----
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# ---- 系统 ----
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ---- 临时 ----
+*.tmp
+*.log
+~$*

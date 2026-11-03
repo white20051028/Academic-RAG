@@ -1,0 +1,10 @@
+{"q": "高等数学老师都有谁", "expect_no_answer": true, "why": "师资名录不在教务处制度文件里"}
+{"q": "计算机学院有哪些老师", "expect_no_answer": true, "why": "学院师资在学院网站"}
+{"q": "大三学生想出去实习可以请假吗", "expect_no_answer": true, "why": "实习管理在实践教学/学院，现有文件只有新生入学请假2周"}
+{"q": "食堂几点开门", "expect_no_answer": true, "why": "后勤信息"}
+{"q": "宿舍怎么申请", "expect_no_answer": true, "why": "学生处事务"}
+{"q": "学校有几个校区", "expect_no_answer": true, "why": "学校概况，不在教务制度里"}
+{"q": "图书馆开放时间", "expect_no_answer": true, "why": "图书馆信息"}
+{"q": "怎么申请国家奖学金", "expect_no_answer": true, "why": "奖学金评定办法归学生处，未抓取"}
+{"q": "考研需要什么条件", "expect_no_answer": true, "why": "研究生招生，不在本科教务制度里"}
+{"q": "我们学校全国排名多少", "expect_no_answer": true, "why": "学校概况"}

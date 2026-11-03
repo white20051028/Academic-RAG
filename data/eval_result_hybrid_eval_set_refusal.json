@@ -1,0 +1,13 @@
+{
+  "eval_set": "eval_set_refusal.jsonl",
+  "mode": "混合(BM25+向量+RRF)",
+  "k": 5,
+  "recall@5": null,
+  "mrr": null,
+  "refusal_accuracy": 0.8,
+  "false_refusal_rate": null,
+  "n_recall": 0,
+  "n_refuse": 10,
+  "by_category": {},
+  "failures": []
+}

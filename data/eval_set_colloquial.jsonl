@@ -1,0 +1,24 @@
+{"q": "我绩点2.5能不能毕业", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.30"], "category": "口语-学位"}
+{"q": "毕业证找不着了咋办", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["补授"], "category": "口语-学位"}
+{"q": "我大二了还想转专业来得及吗", "expect_source": "转专业工作的通知", "expect_keywords": ["一学年"], "category": "口语-转专业"}
+{"q": "转专业要多少绩点啊", "expect_source": "转专业工作的通知", "expect_keywords": ["3.00"], "category": "口语-转专业"}
+{"q": "补考没过会不会影响拿学位", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["不授予"], "category": "口语-学位"}
+{"q": "家里有事能请多久假", "expect_source": "学籍管理规定", "expect_keywords": ["2 周"], "category": "口语-学籍"}
+{"q": "我想休学一年可以吗", "expect_source": "学籍管理规定", "expect_keywords": ["休学"], "category": "口语-学籍"}
+{"q": "挂科太多会不会被退学", "expect_source": "学籍管理规定", "expect_keywords": ["退学"], "category": "口语-学籍"}
+{"q": "辅修能抵主修的学分吗", "expect_source": "辅修专业管理办法", "expect_keywords": ["学分"], "category": "口语-辅修"}
+{"q": "我学计算机的能辅修会计吗", "expect_source": "辅修专业管理办法", "expect_keywords": ["辅修"], "category": "口语-辅修"}
+{"q": "本硕连读是不是直接读研", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["推免"], "category": "口语-本硕"}
+{"q": "本硕连读会不会被取消", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["取消本硕连读资格"], "category": "口语-本硕"}
+{"q": "退伍回来怎么复学", "expect_source": "学分认定管理办法", "expect_keywords": ["退役"], "category": "口语-学籍"}
+{"q": "学生证丢了急用怎么办", "expect_source": "补办学生证", "expect_keywords": ["补办"], "category": "口语-办事"}
+{"q": "公选课在哪选", "expect_source": "公共选修课", "expect_keywords": ["选课"], "category": "口语-办事"}
+{"q": "竞赛获奖能加学分吗", "expect_source": "学分认定管理办法", "expect_keywords": ["竞赛"], "category": "口语-学分"}
+{"q": "交流一学期回来学分怎么算", "expect_source": "学分认定管理办法", "expect_keywords": ["交流"], "category": "口语-学分"}
+{"q": "开学多久内要办学分认定", "expect_source": "学分认定管理办法", "expect_keywords": ["两周"], "category": "口语-学分"}
+{"q": "辅修和主修课重了怎么办", "expect_source": "辅修专业管理办法", "expect_keywords": ["冲突"], "category": "口语-辅修"}
+{"q": "挂科了要重修吗", "expect_source": "重修管理办法", "expect_keywords": ["重修"], "category": "口语-重修"}
+{"q": "补考没过怎么办", "expect_source": "重修管理办法", "expect_keywords": ["补考", "重修"], "category": "口语-重修"}
+{"q": "重修要交钱吗", "expect_source": "重修管理办法", "expect_keywords": ["费", "重修"], "category": "口语-重修"}
+{"q": "重修几次会拿不到学位", "expect_source": "重修管理办法", "expect_keywords": ["学位", "重修"], "category": "口语-重修"}
+{"q": "考试作弊会怎么处理", "expect_source": "学生管理规定", "expect_keywords": ["作弊", "处分"], "category": "口语-违纪"}

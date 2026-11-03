@@ -1,0 +1,55 @@
+{"q": "平均绩点多少才能拿到学士学位", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.30"], "category": "学位"}
+{"q": "绩点2.1能拿学位吗", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.00"], "category": "学位"}
+{"q": "绩点低于2.0能不能拿学位", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.00"], "category": "学位"}
+{"q": "什么情况不授予学士学位", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["不授予"], "category": "学位"}
+{"q": "学位证丢了能补办吗", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["补授"], "category": "学位"}
+{"q": "辅修学士学位的绩点要求是多少", "expect_source": "辅修学士学位授予", "expect_keywords": ["2.30"], "category": "学位"}
+{"q": "辅修的毕业论文能和主修一样吗", "expect_source": "辅修学士学位授予", "expect_keywords": ["毕业论文"], "category": "学位"}
+{"q": "违反招生规定入学的人能拿学位吗", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["招生规定"], "category": "学位"}
+{"q": "学分认定什么时候申请", "expect_source": "学分认定管理办法", "expect_keywords": ["两周"], "category": "学分"}
+{"q": "学分能重复认定吗", "expect_source": "学分认定管理办法", "expect_keywords": ["不予重复"], "category": "学分"}
+{"q": "退役复学能认定哪些课程学分", "expect_source": "学分认定管理办法", "expect_keywords": ["退役"], "category": "学分"}
+{"q": "学科竞赛能抵学分吗", "expect_source": "学分认定管理办法", "expect_keywords": ["竞赛"], "category": "学分"}
+{"q": "校际交流的学分怎么认定", "expect_source": "学分认定管理办法", "expect_keywords": ["交流"], "category": "学分"}
+{"q": "申请学分认定要填什么表", "expect_source": "学分认定管理办法", "expect_keywords": ["审核表"], "category": "学分"}
+{"q": "转专业之后原来的学分还算不算", "expect_source": "转专业工作的通知", "expect_keywords": ["学分"], "category": "学分"}
+{"q": "辅修报名的绩点要求", "expect_source": "辅修专业管理办法", "expect_keywords": ["3.0"], "category": "辅修"}
+{"q": "辅修专业总共要修多少学分", "expect_source": "辅修专业管理办法", "expect_keywords": ["50"], "category": "辅修"}
+{"q": "辅修每学期最多修多少学分", "expect_source": "辅修专业管理办法", "expect_keywords": ["10"], "category": "辅修"}
+{"q": "辅修多少人以上要单独编班", "expect_source": "辅修专业管理办法", "expect_keywords": ["20"], "category": "辅修"}
+{"q": "辅修和主修相同的核心课最多几门", "expect_source": "辅修专业管理办法", "expect_keywords": ["3 门"], "category": "辅修"}
+{"q": "辅修从第几学期可以开始读", "expect_source": "辅修专业管理办法", "expect_keywords": ["一年级第二学期"], "category": "辅修"}
+{"q": "辅修在系统里怎么报名", "expect_source": "辅修报名", "expect_keywords": ["辅修报名"], "category": "辅修"}
+{"q": "辅修课程和主修课程冲突怎么办", "expect_source": "辅修专业管理办法", "expect_keywords": ["冲突"], "category": "辅修"}
+{"q": "微专业一共多少学分", "expect_source": "微专业管理办法", "expect_keywords": ["12"], "category": "微专业"}
+{"q": "微专业的绩点要求", "expect_source": "微专业管理办法", "expect_keywords": ["2.30"], "category": "微专业"}
+{"q": "微专业要读多长时间", "expect_source": "微专业管理办法", "expect_keywords": ["2 个学期"], "category": "微专业"}
+{"q": "微专业中途退出学费退吗", "expect_source": "微专业管理办法", "expect_keywords": ["退还"], "category": "微专业"}
+{"q": "微专业多少人以上单独编班", "expect_source": "微专业管理办法", "expect_keywords": ["20"], "category": "微专业"}
+{"q": "微专业怎么报名", "expect_source": "微专业报名", "expect_keywords": ["报名"], "category": "微专业"}
+{"q": "请假最多能请多少天", "expect_source": "学籍管理规定", "expect_keywords": ["2 周"], "category": "学籍异动"}
+{"q": "生病了可以保留入学资格多久", "expect_source": "学籍管理规定", "expect_keywords": ["1 年"], "category": "学籍异动"}
+{"q": "参军入伍能保留入学资格多久", "expect_source": "学籍管理规定", "expect_keywords": ["退役后2 年"], "category": "学籍异动"}
+{"q": "保留入学资格期满怎么申请入学", "expect_source": "学籍管理规定", "expect_keywords": ["3 个月"], "category": "学籍异动"}
+{"q": "休学需要办什么手续", "expect_source": "学籍管理规定", "expect_keywords": ["休学"], "category": "学籍异动"}
+{"q": "退学以后还能复学吗", "expect_source": "学籍管理规定", "expect_keywords": ["退学"], "category": "学籍异动"}
+{"q": "哪些情况会被退学", "expect_source": "学籍管理规定", "expect_keywords": ["退学"], "category": "学籍异动"}
+{"q": "新生入学后多长时间复查", "expect_source": "学籍管理规定", "expect_keywords": ["3 个月"], "category": "学籍异动"}
+{"q": "哪些情况不允许转专业", "expect_source": "转专业工作的通知", "expect_keywords": ["不予转专业"], "category": "转专业"}
+{"q": "转专业的绩点要求是多少", "expect_source": "转专业工作的通知", "expect_keywords": ["3.00"], "category": "转专业"}
+{"q": "大一新生能转专业吗", "expect_source": "转专业工作的通知", "expect_keywords": ["一学年"], "category": "转专业"}
+{"q": "转专业结果公示几天", "expect_source": "转专业工作的通知", "expect_keywords": ["3 个工作日"], "category": "转专业"}
+{"q": "转专业后一个班最多多少人", "expect_source": "转专业工作的通知", "expect_keywords": ["35"], "category": "转专业"}
+{"q": "学院能在面试前拒绝转专业申请吗", "expect_source": "转专业工作的通知", "expect_keywords": ["拒绝"], "category": "转专业"}
+{"q": "本硕连读的学制是几年", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["6"], "category": "本硕连读"}
+{"q": "本硕连读一个导师最多带几个学生", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["4 人"], "category": "本硕连读"}
+{"q": "什么情况会取消本硕连读资格", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["取消本硕连读资格"], "category": "本硕连读"}
+{"q": "本硕连读什么时候做资格考核", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["第三"], "category": "本硕连读"}
+{"q": "本硕连读多少人以上单独组班", "expect_source": "本硕连读培养管理办法", "expect_keywords": ["25"], "category": "本硕连读"}
+{"q": "学生证丢了怎么补办", "expect_source": "补办学生证", "expect_keywords": ["补办"], "category": "办事流程"}
+{"q": "公共选修课怎么选", "expect_source": "公共选修课", "expect_keywords": ["选课"], "category": "办事流程"}
+{"q": "计算机专业要修多少学分才能毕业", "expect_source": "培养方案", "expect_keywords": ["171"], "category": "学分构成"}
+{"q": "通识教育一共多少学分", "expect_source": "培养方案", "expect_keywords": ["72"], "category": "学分构成"}
+{"q": "专业教育要修多少学分", "expect_source": "培养方案", "expect_keywords": ["62"], "category": "学分构成"}
+{"q": "第二课堂要修多少学分", "expect_source": "培养方案", "expect_keywords": ["10"], "category": "学分构成"}
+{"q": "集中实践教学多少学分", "expect_source": "培养方案", "expect_keywords": ["37"], "category": "学分构成"}

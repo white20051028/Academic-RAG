@@ -1,0 +1,19 @@
+# 核心依赖
+pymupdf==2.0.0          # PDF 文本 + 表格提取
+python-docx==1.2.0      # .docx 读取
+openpyxl==3.1.5         # .xlsx 读取
+
+# 检索
+chromadb==1.5.9         # 向量库
+openai==3.42.0          # 调用 SiliconFlow 的 embedding / chat（OpenAI 兼容）
+numpy==2.4.6
+jieba==0.42.1           # 中文分词（BM25 用）
+rank-bm25==0.2.2        # BM25
+
+# 界面
+streamlit==1.66.1
+httpx==0.28.1           # 调 P1 网关
+
+# 仅在 Windows 上需要：用 Word COM 读 .doc（Office 97-2003 二进制格式）
+# 如果是 Linux/macOS，改用 `libreoffice --headless --convert-to docx` 或跳过 .doc 文件
+pywin32==312 ; sys_platform == "win32"

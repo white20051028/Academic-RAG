@@ -1,0 +1,15 @@
+{"q": "转专业需要什么条件", "expect_source": "转专业工作的通知", "expect_keywords": ["转专业"], "category": "政策条件"}
+{"q": "大二可以转专业吗", "expect_source": "转专业工作的通知", "expect_keywords": ["转专业"], "category": "政策条件"}
+{"q": "学分认定怎么办理", "expect_source": "学分认定管理办法", "expect_keywords": ["学分认定"], "category": "办事流程"}
+{"q": "辅修专业怎么报名", "expect_source": "辅修报名", "expect_keywords": ["辅修"], "category": "办事流程"}
+{"q": "辅修学士学位怎么授予", "expect_source": "辅修学士学位授予", "expect_keywords": ["辅修"], "category": "政策条件"}
+{"q": "微专业怎么报名", "expect_source": "微专业报名", "expect_keywords": ["微专业"], "category": "办事流程"}
+{"q": "学位授予需要什么条件", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["学位"], "category": "政策条件"}
+{"q": "休学需要什么手续", "expect_source": "学籍管理规定", "expect_keywords": ["休学"], "category": "办事流程"}
+{"q": "学生证丢了怎么补办", "expect_source": "补办学生证", "expect_keywords": ["补办"], "category": "办事流程"}
+{"q": "公共选修课怎么选", "expect_source": "公共选修课", "expect_keywords": ["选课"], "category": "办事流程"}
+{"q": "网络公选课怎么学习", "expect_source": "网络公选课", "expect_keywords": ["网络公选课"], "category": "办事流程"}
+{"q": "本硕连读怎么申请", "expect_source": "本硕连读", "expect_keywords": ["本硕连读"], "category": "办事流程"}
+{"q": "考试作弊会怎么处理", "expect_source": "学籍管理规定", "expect_keywords": ["作弊"], "category": "政策条件"}
+{"q": "体育课怎么选课", "expect_source": "体育课", "expect_keywords": ["选课"], "category": "办事流程"}
+{"q": "挂科了要重修吗", "expect_source": "学籍管理规定", "expect_keywords": ["不及格", "补考", "重修"], "category": "口语化查询"}
