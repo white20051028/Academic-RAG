@@ -1,0 +1,208 @@
+西安科技大学院处函件
+
+                                   教务函〔2018〕103号
+关于组织学生参加西安科技大学
+第二届大学生物理学术竞赛的通知
+各学院：
+为了培养大学生的创新意识、协作精神和实践能力，促使学生充分理解掌握所学的物理知识，促进我校公共基础学科课程改革与建设，同时选拔优秀队员参加2019年在新疆大学举办的“中国大学生物理学术竞赛西北赛区竞赛（CUPT）”，经研究，特举行“西安科技大学第二届大学生物理学术竞赛”。现将具体事宜通知如下。
+一、参赛对象
+我校在校 1～3 年级本科生均可报名参赛，不缴纳报名费用。
+二、报名办法
+本次竞赛的报名方式以各学院为单位集体组织报名。各学院于10月29日16:00前将汇总的报名表电子版发送至西安科技大学物理学术竞赛官方邮箱：xustcupt@163.com，无需提交纸质报名表。
+报名联系人：闫小乐老师（理学院）
+联系电话：13519176826
+三、竞赛时间
+（一）初赛：2018 年 11 月 15 日（周四）。
+（二）复赛：2018 年 12 月 01 日（周六）。
+（三）决赛：2018 年 12 月 22 日（周六）。
+竞赛具体安排详见QQ 交流群。
+四、联系方式
+QQ 交流群：924443223，924457157。
+请参赛学生加入本群，并关注群中通知。
+
+附件1：西安科技大学第二届大学生物理学术竞赛报名表
+附件2：西安科技大学第二届大学生物理学术竞赛题目
+
+
+
+教务处 
+理学院 
+2018年10月22日
+
+
+
+
+
+附件1：
+西安科技大学第二届大学生物理学术竞赛报名表
+学院名称：
+序号
+姓名
+性别
+专业班级
+学号
+联系电话
+E-mail
+
+1
+
+
+
+
+
+
+
+2
+
+
+
+
+
+
+
+3
+
+
+
+
+
+
+
+4
+
+
+
+
+
+
+
+5
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+注：本表可复印。附件2：
+西安科技大学第二届大学生物理学术竞赛题目
+（选自IYPT2019题目，中文翻译仅作参考）
+题目1. Moiré Thread Counter
+When a pattern of closely spaced non-intersecting lines (with transparent gaps in between) is overlaid on a piece of woven fabric, characteristic moiré fringes may be observed. Design an overlay that allows you to measure the thread count of the fabric. Determine the accuracy for simple fabrics (e.g. linen) and investigate if the method is reliable for more complex fabrics (e.g. denim or Oxford cloth). （把一个中间有透明间隙的紧密间隔的非相交线覆盖在一件织物上时, 可以观察到典型的莫尔条纹。设计一个覆盖层用来测量织物的线数，即织物经纬密度。针对简单织物，例如亚麻等，确定该方法的准确性, 并调查这种方法是否可用于更为复杂的织物，例如牛仔布或牛津布料等)。
+
+图1
+关键问题：
+(1) 准备多个由规则图案组成的织物，例如窗纱网等。
+(2) 选择其中一种织物，确保可以使用尺子或其他工具测量织线的间距。
+(3) 测量织线的平均间距(晶格常数)。
+(4) 把该织物放在其他织物上，并拍照记录看到的图形。
+(5) 你能从图片中确定第二种织物的未知晶格常数吗？并尝试分析误差？
+题目2. Funnel and Ball 
+A light ball (e.g. ping-pong ball) can be picked up with a funnel by blowing air through it. Explain the phenomenon and investigate the relevant parameters. （一个轻质球（例如乒乓球）可以通过一个漏斗吹入空气而被拾起。解释该现象并研究相关参数对其影响。）
+图2
+关键问题：
+(1) 尝试使用图2中的类似装置进行实验。
+(2) 如何解释这种现象？对球的作用力能做出分析吗？
+(3) 试着测量实验装置各点的气压，并解释如何产生向上的力。
+(4) 在实验中，你可以改变哪些参数来分析球的影响 (例如球体密度, 球的几何尺寸和球的材料等)？
+(5) 用不同漏斗重复实验。哪个漏斗能实现最佳的实验效果？
+题目3. Hurricane Balls
+Two steel balls that are joined together can be spun at incredibly high frequency by first spinning them by hand and then blowing on them through a tube, e.g. a drinking straw. Explain and investigate this phenomenon. （连接在一起的两个钢球可能以令人难以置信的速度旋转。这首先需要用手旋转两球，然后通过一根管子（例如吸管）吹它们。解释和研究这一现象。）
+图3
+关键问题：
+(1) 制作飓风球，将两个相同的钢球焊接或粘接在一起。
+(2) 用手把飓风球放在光滑表面上并快速转动。你是否设法在同一个地方使飓风球稳定旋转？为什么两个球会在一个中心附近稳定旋转？
+(3) 试着吹球 (例如用圆珠笔的外壳，吸管等)
+(4) 为什么飓风球在吹的时候会转动加快？你能测量球的旋转速度吗？
+(5) 为什么飓风球不能一直快速旋转？
+题目4. Loud Voices 
+A simple cone-shaped or horn-shaped object can be used to optimise the transfer of the human voice to a remote listener. Investigate how the resulting acoustic output depends on relevant parameters such as the shape, size, and material of the cone. （一个简单的锥形或喇叭状物体可以用来优化人的声音传输，使其传到远处的听众（能使更远的听众听到）。研究影响输出端声音的相关参数，如锥体的形状，大小和材料等。）
+图4
+关键问题：
+(1) 利用纸板制作锥形漏斗。
+(2) 当你从后面说话时，试着测量漏斗前面几米处的音量，分析漏斗放大声音的效果。
+(3) 通过尝试漏斗的不同形状、大小和材质，以达到最大增益。
+(4) 你能解释为什么某个漏斗最好吗？
+(5) 尝试测量漏斗口音量分布情况。
+题目5. Popsicle Chain Reaction 
+Wooden popsicle sticks can be joined together by slightly bending each of them so that they interlock in a so-called “cobra weave” chain. When such a chain has one of its ends released, the sticks rapidly dislodge, and a wave front travels along the chain. Investigate the phenomenon. （木制冰棒棍可以通过稍微弯曲而连接在一起, 使它们在所谓的“眼镜蛇编织”链条中互锁。当释放链的一端时, 冰棒棍迅速地脱落, 并且产生一个沿链子传播的波前。研究这一现象。）
+图5
+关键问题：
+(1) 定性解释图5中显示的链反应是如何工作的。势能来自哪里？它是如何存储的？
+(2) 升级实验，并考虑哪些参数可以系统地变化，进行测量分析。
+(3) 不同参数如何影响波前通过链条的传播速度？
+(4) 你能从理论上计算或估计这种影响吗？
+(5) 每根杆子上储存的能量是多少？如何测量它们？
+(6) 如何实现一条最快传播速度的链？

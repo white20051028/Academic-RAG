@@ -20,13 +20,12 @@ import os
 import re
 from pathlib import Path
 
-import chromadb
-
 import chunking
 
 ROOT = Path(r"D:\桌面\教务RAG")
 PROC = ROOT / "data" / "processed"
-CHROMA = ROOT / "data" / "chroma"
+DATA = ROOT / "data"
+CHROMA = ROOT / "data" / "chroma"          # 已弃用，保留常量防止旧代码引用报错
 STATS = ROOT / "data" / "index_stats.json"
 ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
 
@@ -192,17 +191,34 @@ def main():
     print(f"\n=== 向量化（{EMBED_MODEL}）===")
     vectors = embed_all(docs, client)
 
-    # 建库（每次重建，避免重复）
-    print("\n=== 写入 Chroma ===")
-    CHROMA.mkdir(parents=True, exist_ok=True)
-    db = chromadb.PersistentClient(path=str(CHROMA))
-    try:
-        db.delete_collection("xust")
-    except Exception:  # noqa: BLE001
-        pass
-    col = db.create_collection("xust", metadata={"hnsw:space": "cosine"})
-    col.add(ids=ids, documents=docs, embeddings=vectors, metadatas=metas)
-    print(f"  已写入 {col.count()} 条")
+    # 导出索引：文本 + metadata（JSON）+ 向量矩阵（npy）。
+    #
+    # 为什么不用向量数据库：
+    #   1070 条 × 1024 维，numpy 点积一次约 1ms，完全够用。
+    #   而 Chroma 1.5.9 在这个量级会把 HNSW 索引写坏
+    #   （InternalError: Error loading hnsw index）——
+    #   分批写没用、删库重建也没用。535 条时是好的，1070 条就崩。
+    #   **工具要匹配规模**，不是越复杂越好。
+    print("\n=== 导出索引 ===")
+    import numpy as np
+
+    DATA.mkdir(parents=True, exist_ok=True)
+
+    (DATA / "chunks.json").write_text(
+        json.dumps(
+            [{"id": i, "doc": d, "meta": m} for i, d, m in zip(ids, docs, metas)],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    # 预先归一化：之后点积就等于余弦相似度，检索时不用再算范数
+    vec = np.asarray(vectors, dtype="float32")
+    vec /= np.linalg.norm(vec, axis=1, keepdims=True)
+    np.save(DATA / "embeddings.npy", vec)
+
+    print(f"  chunks.json     {(DATA / 'chunks.json').stat().st_size // 1024} KB")
+    print(f"  embeddings.npy  {vec.shape}  {(DATA / 'embeddings.npy').stat().st_size // 1024} KB")
 
     stats = {
         "files_total": len(files),

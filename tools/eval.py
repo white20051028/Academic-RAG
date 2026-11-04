@@ -21,7 +21,6 @@ import json
 import sys
 from pathlib import Path
 
-import chromadb
 
 ROOT = Path(r"D:\桌面\教务RAG")
 CHROMA = ROOT / "data" / "chroma"
@@ -92,9 +91,7 @@ def main():
             sys.exit(1)
 
     client = OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
-    db = chromadb.PersistentClient(path=str(CHROMA))
-    col = db.get_collection("xust")
-    retriever = R.HybridRetriever(col, client, EMBED_MODEL)
+    retriever = R.HybridRetriever(client, EMBED_MODEL)
 
     mode = "纯向量" if use_vector else ("混合+改写" if use_rewrite else "混合(BM25+向量+RRF)")
     print(f"索引 {retriever.size} 个 chunk ｜ 模式：{mode}")

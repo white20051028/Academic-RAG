@@ -2,6 +2,9 @@
 # Chroma 向量库，跑一遍 tools/build_index.py 就能重建
 data/chroma/
 
+# 向量矩阵要进仓库：4.3MB，但省得别人重新调 embedding API
+!data/embeddings.npy
+
 # 原始文件（54MB）：PDF/DOC/RAR，可以从 processed 重建，也涉及版权
 data/raw/
 

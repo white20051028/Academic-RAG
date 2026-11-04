@@ -12,7 +12,6 @@
 import re
 from pathlib import Path
 
-import chromadb
 import httpx
 import streamlit as st
 
@@ -204,12 +203,6 @@ def get_embed_client():
     return OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
 
 
-@st.cache_resource
-def get_collection():
-    db = chromadb.PersistentClient(path=str(CHROMA))
-    return db.get_collection("xust")
-
-
 def gateway_available() -> bool:
     try:
         return httpx.get(f"{GATEWAY}/health", timeout=2).status_code == 200
@@ -219,12 +212,16 @@ def gateway_available() -> bool:
 
 @st.cache_resource
 def get_retriever():
-    """混合检索器（向量 + BM25 + RRF）。缓存的，只建一次。"""
+    """混合检索器（向量 + BM25 + RRF）。缓存的，只建一次。
+
+    不再用 Chroma —— 1070 条数据用 numpy 点积就够（一次约 1ms），
+    而 Chroma 1.5.9 在这个量级会把 HNSW 索引写坏。
+    """
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
     import retrieval as R
 
-    return R.HybridRetriever(get_collection(), get_embed_client(), EMBED_MODEL)
+    return R.HybridRetriever(get_embed_client(), EMBED_MODEL)
 
 
 def retrieve(query: str, k: int, rewrite: bool = True):
@@ -373,7 +370,7 @@ with st.sidebar:
         backend = "直接调模型"
 
     st.divider()
-    st.caption("索引：{} 个片段 · 模型：{}".format(get_collection().count(), EMBED_MODEL))
+    st.caption("索引：{} 个片段 · 模型：{}".format(get_retriever().size, EMBED_MODEL))
 
 question = st.text_input("你的问题", placeholder="例如：转专业需要什么条件？")
 
@@ -476,5 +473,5 @@ if question:
                 st.info("如果选了 P1 网关，确认它正在 127.0.0.1:6066 运行。")
 
 st.divider()
-st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_collection().count()} 个检索片段")
+st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")
 st.caption("⚠️ 本系统只覆盖制度类文件，**不含**师资名录、课表、成绩、宿舍/食堂信息")

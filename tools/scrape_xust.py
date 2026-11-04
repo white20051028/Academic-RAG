@@ -52,13 +52,62 @@ def fetch_text(url: str) -> str:
 
 
 def article_links(col_id: int) -> list[str]:
-    html = fetch_text(f"{BASE}/News_list.jsp?urltype=tree.TreeTempUrl&wbtreeid={col_id}")
+    """抓一个栏目的**所有**文章链接（含分页）。
+
+    博达 CMS 的分页长这样：
+      ?a196064t=8&a196064p=2&a196064c=40&urltype=tree.TreeTempUrl&wbtreeid=1004
+                  ↑ 页码
+    "a196064" 这个前缀是每个栏目不同的，所以不写死——
+    从第一页 HTML 里把分页链接挖出来，只替换 p= 后面的数字。
+
+    之前的 bug：只抓第一页。「学籍与学位」共 288 篇，只抓了 40 篇（漏 86%），
+    推免方案就在后面的页里，所以问「保研要求」永远答不出来。
+    """
+    first = f"{BASE}/News_list.jsp?urltype=tree.TreeTempUrl&wbtreeid={col_id}"
+    try:
+        html = fetch_text(first)
+    except Exception:  # noqa: BLE001
+        return []
+
     seen, out = set(), []
-    for l in re.findall(r'href="(/?info/\d+/\d+\.htm)"', html):
-        l = l.lstrip("/")
-        if l not in seen:
-            seen.add(l)
-            out.append(f"{BASE}/{l}")
+
+    def absorb(h: str) -> int:
+        n = 0
+        for l in re.findall(r'href="(/?info/\d+/\d+\.htm)"', h):
+            l = l.lstrip("/")
+            if l not in seen:
+                seen.add(l)
+                out.append(f"{BASE}/{l}")
+                n += 1
+        return n
+
+    absorb(html)
+
+    # 从第一页找分页模板：href="?a196064t=8&a196064p=2&...wbtreeid=1004"
+    m = re.search(
+        r'href="(\?[^"]*?p=2[^"]*?wbtreeid=' + str(col_id) + r')"', html
+    )
+    if not m:
+        return out
+
+    tpl = m.group(1)
+
+    # 总页数：页面里有 "1/8"
+    total_pages = 1
+    pm = re.search(r"(\d+)\s*/\s*(\d+)", html)
+    if pm:
+        total_pages = int(pm.group(2))
+
+    for page in range(2, min(total_pages, 40) + 1):
+        page_url = BASE + "/News_list.jsp" + re.sub(r"(p=)\d+", rf"\g<1>{page}", tpl)
+        try:
+            h = fetch_text(page_url)
+        except Exception:  # noqa: BLE001
+            break
+        if absorb(h) == 0:
+            break
+        time.sleep(DELAY)
+
     return out
 
 

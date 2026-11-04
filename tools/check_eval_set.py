@@ -14,7 +14,6 @@
 import json
 from pathlib import Path
 
-import chromadb
 
 ROOT = Path(r"D:\桌面\教务RAG")
 CHROMA = ROOT / "data" / "chroma"
@@ -29,16 +28,14 @@ def main():
     ]
     print(f"评测集 {len(items)} 条\n")
 
-    db = chromadb.PersistentClient(path=str(CHROMA))
-    col = db.get_collection("xust")
+    # 从 chunks.json 读（不再用 Chroma —— 它在 1000+ 条时会崩）
+    rows = json.loads((CHROMA.parent / "chunks.json").read_text(encoding="utf-8"))
 
-    # 把所有 chunk 按来源文件分组
-    data = col.get(include=["documents", "metadatas"])
     by_source: dict[str, list[str]] = {}
-    for doc, meta in zip(data["documents"], data["metadatas"]):
-        by_source.setdefault(meta["source"], []).append(doc)
+    for r in rows:
+        by_source.setdefault(r["meta"]["source"], []).append(r["doc"])
 
-    print(f"索引里 {len(data['documents'])} 个 chunk，来自 {len(by_source)} 个文件\n")
+    print(f"索引里 {len(rows)} 个 chunk，来自 {len(by_source)} 个文件\n")
 
     problems = []
     seen_q = {}
