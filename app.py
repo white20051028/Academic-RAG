@@ -9,6 +9,7 @@
   E:\\anaconda3\\envs\\llm-rag\\python.exe -m streamlit run app.py
 """
 
+import re
 from pathlib import Path
 
 import chromadb
@@ -172,6 +173,76 @@ def build_context(results) -> str:
     return "\n\n".join(parts)
 
 
+# ---------------- 引用的三个后处理 ----------------
+# Prompt 里要求模型自己标 [1][2]，但它经常忘。这三步是保底。
+
+CITE_RE = re.compile(r"\[(\d+)\]")
+
+# 只校验两类数字：小数（2.30）和"两位以上的整数"（170 / 72 / 2024）。
+# 为什么跳过个位数：1、2、3 多是"第 1 学期""3 门"里的序号，校验它们全是误报。
+# 为什么不连单位一起比对：资料写「170，」答案写「170 学分」，
+# 整体匹配会对正确答案误报 —— 这是实测踩到的。
+NUM_PAT = re.compile(r"\d+\.\d+|\d{2,}")
+
+
+def has_citation(answer: str) -> bool:
+    """答案里有没有 [n] 形式的引用标记。"""
+    return bool(CITE_RE.search(answer))
+
+
+def append_sources(answer: str, results) -> str:
+    """模型没标引用时的兜底：末尾列出所有来源。
+
+    局限：这是「整体来源列表」，不能精确到「哪句话来自哪一条」。
+    要精确溯源得让模型逐句标，而模型不可靠 —— 所以这是次优但可用的方案。
+    """
+    if has_citation(answer):
+        return answer
+    lines = [answer.rstrip(), "", "---", "**参考来源**（按相关度排序）："]
+    for i, r in enumerate(results, 1):
+        src = r["meta"]["source"].replace(".txt", "")
+        head = r["doc"].replace("\n", " ").strip()[:36]
+        lines.append(f"{i}. 《{src}》—— {head}…")
+    return "\n".join(lines)
+
+
+def verify_numbers(answer: str, results) -> list[str]:
+    """轻量校验：答案里的小数和两位数以上整数，是否都在资料里出现过。
+
+    返回「资料里找不到的数字」列表。空列表 = 没发现问题。
+
+    局限（必须知道）：
+      1. 只能查「字面出现」，查不出「数字对但逻辑反了」
+         （资料写"2.30 以上"，答案写"2.30 以下" → 校验通过）
+      2. 同一个数字可能有多种含义（"170 学分"和"170 学时"都含 170），
+         所以它只能提示"这个数字可疑"，不能断定错
+    """
+    # 校验池 = 正文 + 文件名。
+    # 文件名也要算进来，因为「2024 级」这种年份在文件名里，正文里未必出现 ——
+    # 不带上文件名就会把正确答案误报成"资料里没有"。
+    pool = re.sub(
+        r"\s+", "",
+        "\n".join(r["doc"] + " " + r["meta"].get("source", "") for r in results),
+    )
+    missing = []
+    for m in NUM_PAT.finditer(answer):
+        token = m.group(0)
+        if re.sub(r"\s+", "", token) not in pool:
+            missing.append(token)
+    # 去重且保持顺序
+    return list(dict.fromkeys(missing))
+
+
+def data_version_note(results) -> str | None:
+    """从文件名里认出「2024 级」「2026 版」这种版本标记，给用户提示。"""
+    for r in results:
+        src = r["meta"]["source"]
+        m = re.search(r"(20\d{2})\s*级", src) or re.search(r"(20\d{2})\s*版", src)
+        if m:
+            return f"数据版本：**{m.group(1)}** 的方案。其他年份的版本可能不同。"
+    return None
+
+
 def stream_via_gateway(prompt: str):
     """走 P1 网关（有降级、限流、计量）。
 
@@ -285,6 +356,21 @@ if question:
         can_answer = True
 
     if can_answer:
+        # 引用区先显示：检索完就有，不用等生成
+        st.markdown("**📎 参考资料**（答案里的 `[1][2]` 对应这里）")
+        for i, r in enumerate(results, 1):
+            src = r["meta"]["source"].replace(".txt", "")
+            head = r["doc"].replace("\n", " ").strip()[:90]
+            st.markdown(f"**[{i}]** 《{src}》  \n<span style='color:gray'>{head}…</span>",
+                        unsafe_allow_html=True)
+
+        # 数据版本提示（防误导：2024 级方案不等于菁英班方案）
+        note = data_version_note(results)
+        if note:
+            st.caption(f"⚠️ {note}")
+
+        st.divider()
+
         if st.button("生成回答", type="primary"):
             prompt = PROMPT.format(context=build_context(results), question=question)
             placeholder = st.empty()
@@ -294,13 +380,27 @@ if question:
                 for piece in gen:
                     acc += piece
                     placeholder.markdown(acc + "▌")
-                placeholder.markdown(acc)
-                st.caption(f"生成后端：{backend} · 回答长度 {len(acc)} 字")
+
+                # 后处理 1：模型没标 [n] 就在末尾列出来源
+                final = append_sources(acc, results)
+                placeholder.markdown(final)
+
+                # 后处理 2：轻量校验（小数 + 带单位数字）
+                missing = verify_numbers(final, results)
+                if missing:
+                    st.warning(
+                        f"⚠️ 答案里这些数字在资料里没找到，**可能不准确**："
+                        f"{'、'.join(missing[:6])}"
+                    )
+                else:
+                    st.caption("✅ 答案里的关键数字都能在资料里对上")
+
+                st.caption(f"生成后端：{backend} · 回答 {len(final)} 字")
             except Exception as e:  # noqa: BLE001
                 placeholder.empty()
                 st.error(f"生成失败：{type(e).__name__}: {str(e)[:200]}")
                 st.info("如果选了 P1 网关，确认它正在 127.0.0.1:6066 运行。")
 
 st.divider()
-st.caption("数据来源：西安科技大学教务处公开文件 · 共 46 份制度类文档")
+st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_collection().count()} 个检索片段")
 st.caption("⚠️ 本系统只覆盖制度类文件，**不含**师资名录、课表、成绩、宿舍/食堂信息")
