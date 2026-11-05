@@ -22,3 +22,8 @@
 {"q": "重修要交钱吗", "expect_source": "重修管理办法", "expect_keywords": ["费", "重修"], "category": "口语-重修"}
 {"q": "重修几次会拿不到学位", "expect_source": "重修管理办法", "expect_keywords": ["学位", "重修"], "category": "口语-重修"}
 {"q": "考试作弊会怎么处理", "expect_source": "学生管理规定", "expect_keywords": ["作弊", "处分"], "category": "口语-违纪"}
+{"q": "保研要求是什么", "expect_source": "推荐免试", "expect_keywords": ["推荐", "免试"], "category": "口语缩写-保研"}
+{"q": "挂科了怎么办", "expect_source": "重修管理办法", "expect_keywords": ["重修"], "category": "口语缩写-挂科"}
+{"q": "绩点不够会不会拿不到学位证", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.30", "2.00"], "category": "口语缩写-绩点"}
+{"q": "翘课会怎么样", "expect_source": "学籍管理规定", "expect_keywords": ["旷课"], "category": "口语缩写-翘课"}
+{"q": "延毕要怎么申请", "expect_source": "学籍管理规定", "expect_keywords": ["延长学习年限"], "category": "口语缩写-延毕"}
