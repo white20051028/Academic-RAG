@@ -225,9 +225,14 @@ def get_retriever():
 
 
 def retrieve(query: str, k: int, rewrite: bool = True):
-    """检索。rewrite=True 时 BM25 路用改写后的书面词（口语问题提升 10 个点）。"""
+    """检索。rewrite=True 时 BM25 路用改写后的书面词（口语问题提升 10 个点）。
+
+    vec_mode="orig" 是量出来的，不是拍的：向量路也用改写后，口语集
+    Recall@5 从 83% 掉到 79%。改写把原句的语序和限定词抹平了，
+    而向量路恰恰靠这些区分"保研"和"推免材料归档"。
+    """
     retriever = get_retriever()
-    results, best_sim = retriever.search(query, k=k, rewrite=rewrite, vec_mode="rewrite")
+    results, best_sim = retriever.search(query, k=k, rewrite=rewrite, vec_mode="orig")
     return results, best_sim
 
 
