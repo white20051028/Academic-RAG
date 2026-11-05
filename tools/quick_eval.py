@@ -13,7 +13,10 @@ from pathlib import Path
 ROOT = Path(r"D:\桌面\教务RAG")
 ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
 EVAL = ROOT / "data" / "eval_set.jsonl"
-N = int(sys.argv[1]) if len(sys.argv) > 1 else 10
+EVAL = next((Path(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--set=")), EVAL)
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+N = int(args[0]) if args else 10
+VEC_MODE = next((a.split("=")[1] for a in sys.argv if a.startswith("--vec=")), "orig")
 
 
 def read_key():
@@ -39,7 +42,7 @@ def main():
     hits = 0
     for item in items:
         q = item["q"]
-        res, sim = r.search(q, k=5, rewrite=True)
+        res, sim = r.search(q, k=5, rewrite=True, vec_mode=VEC_MODE)
         ok = False
         for rank, x in enumerate(res, 1):
             if item["expect_source"] not in x["meta"]["source"]:
@@ -51,7 +54,7 @@ def main():
         hits += ok
         print(f"  {'OK' if ok else 'X '} {sim:.3f}  {q[:34]}")
 
-    print(f"\n  Recall@5: {hits}/{len(items)} = {hits/len(items):.0%}")
+    print(f"\n  vec_mode={VEC_MODE}  Recall@5: {hits}/{len(items)} = {hits/len(items):.0%}")
 
 
 if __name__ == "__main__":
