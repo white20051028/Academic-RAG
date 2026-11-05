@@ -77,6 +77,10 @@ def main():
 
     use_vector = "--vector" in sys.argv
     use_rewrite = "--rewrite" in sys.argv
+    # 向量路用哪种查询：orig（默认）/ rewrite / both。默认 orig 是量出来的，见 docs/v5
+    vec_mode = next(
+        (a.split("=", 1)[1] for a in sys.argv if a.startswith("--vec-mode=")), "orig"
+    )
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     eval_path = Path(args[0]) if args else DEFAULT_SET
     if not eval_path.exists():
@@ -93,7 +97,7 @@ def main():
     client = OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
     retriever = R.HybridRetriever(client, EMBED_MODEL)
 
-    mode = "纯向量" if use_vector else ("混合+改写" if use_rewrite else "混合(BM25+向量+RRF)")
+    mode = "纯向量" if use_vector else ("混合+改写" if use_rewrite else "混合(BM25+向量+RRF)") + f"｜向量路={vec_mode}"
     print(f"索引 {retriever.size} 个 chunk ｜ 模式：{mode}")
     print(f"评测集：{eval_path.name}（{len(items)} 条）\n")
 
@@ -109,7 +113,7 @@ def main():
     def do_search(q: str):
         if use_vector:
             return search_vector(client, col, q)
-        res, sim = retriever.search(q, k=K, rewrite=use_rewrite)
+        res, sim = retriever.search(q, k=K, rewrite=use_rewrite, vec_mode=vec_mode)
         return [{"doc": r["doc"], "meta": r["meta"]} for r in res], sim
 
     for idx, item in enumerate(recall_items, 1):
