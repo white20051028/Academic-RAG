@@ -227,7 +227,7 @@ def get_retriever():
 def retrieve(query: str, k: int, rewrite: bool = True):
     """检索。rewrite=True 时 BM25 路用改写后的书面词（口语问题提升 10 个点）。"""
     retriever = get_retriever()
-    results, best_sim = retriever.search(query, k=k, rewrite=rewrite)
+    results, best_sim = retriever.search(query, k=k, rewrite=rewrite, vec_mode="rewrite")
     return results, best_sim
 
 

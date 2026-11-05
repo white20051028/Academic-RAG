@@ -98,21 +98,44 @@ class HybridRetriever:
         return [int(i) for i in top_idx if scores[i] > 0]
 
     def search(self, query: str, k: int = 5, pool: int = POOL,
-               rewrite: bool = False) -> tuple[list[dict], float]:
+               rewrite: bool = False,
+               vec_mode: str = "orig") -> tuple[list[dict], float]:
         """返回 (融合后的前 k 条, 向量 top-1 相似度)。
 
         相似度单独返回，因为拒答判断要用它 —— RRF 分数没有绝对尺度，
         不能说"RRF > 0.02 就可信"。
 
-        rewrite=True 时：向量路用原查询（保语义），BM25 路用改写后的书面词
-        （保字面匹配）。两路各用各的长处。
-        """
-        vec_ids, best_sim = self._vector_ids(query, pool)
+        rewrite=True：先做一次查询改写（口语 → 书面），改写结果给 BM25 路用。
 
-        bm25_query = query
-        if rewrite:
+        vec_mode 控制**向量路**用什么查询：
+          "orig"    原查询（默认，保语义）
+          "rewrite" 改写后的查询（保字面命中）
+          "both"    两路都跑，合并候选
+
+        为什么要这个参数：文档里"保研"出现 0 次、"推免"2 次。
+        向量路用原查询"保研要求"时，压根匹配不上推免方案；
+        而 BM25 路用改写后的"推荐免试研究生"能匹配上。
+        结果是向量路拖后腿——所以得实测三种模式哪种最好。
+        """
+        need_rewrite = rewrite or vec_mode in ("rewrite", "both")
+        rq = None
+        if need_rewrite:
             from rewrite import rewrite_query
-            bm25_query = rewrite_query(query, self.client)
+            rq = rewrite_query(query, self.client)
+
+        # ---- 向量路 ----
+        if vec_mode == "rewrite" and rq:
+            vec_ids, best_sim = self._vector_ids(rq, pool)
+        elif vec_mode == "both" and rq:
+            v1, sim1 = self._vector_ids(query, pool)
+            v2, sim2 = self._vector_ids(rq, pool)
+            best_sim = max(sim1, sim2)
+            vec_ids = list(dict.fromkeys(list(v1) + list(v2)))   # 去重保序
+        else:
+            vec_ids, best_sim = self._vector_ids(query, pool)
+
+        # ---- BM25 路 ----
+        bm25_query = rq or query
         bm25_ids = self._bm25_ids(bm25_query, pool)
 
         # 加权 RRF。**不是等权** —— 实测等权会输。
