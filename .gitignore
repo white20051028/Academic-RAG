@@ -11,6 +11,9 @@ data/raw/
 # 从教务系统导出的个人文件（含姓名、学号、成绩），绝不公开
 data/user/
 
+# 用户反馈：真实提问可能带个人信息（学号、姓名），不公开
+data/feedback.jsonl
+
 # ---- Python ----
 __pycache__/
 *.py[cod]

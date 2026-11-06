@@ -9,6 +9,7 @@
   E:\\anaconda3\\envs\\llm-rag\\python.exe -m streamlit run app.py
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -54,6 +55,14 @@ def read_env(name: str) -> str:
 
 
 def read_key() -> str:
+    """当前该用哪个 key。
+
+    优先用**用户在界面上填的**，没有才用 .env 里的。
+    这样同学老师用的时候，花的是他们自己的额度，不需要改任何文件。
+    """
+    ui_key = st.session_state.get("user_key")
+    if ui_key:
+        return ui_key
     return read_env("SILICONFLOW_API_KEY")
 
 
@@ -197,6 +206,31 @@ def retrieve(query: str, k: int, rewrite: bool = True):
     return results, best_sim
 
 
+FEEDBACK_FILE = ROOT / "data" / "feedback.jsonl"
+
+
+def log_feedback(question: str, best_sim: float, verdict: str) -> None:
+    """记一条用户反馈，追加到 data/feedback.jsonl。
+
+    为什么落盘而不是只打日志：
+    这是**唯一能拿到真实用户问了什么**的渠道。评测集是我自己编的题，
+    真实提问才是下一批评测题的来源——也是「有真实用户」这件事的证据。
+
+    不记任何个人信息，只记问题和判定。
+    """
+    from datetime import datetime
+
+    record = {
+        "time": datetime.now().isoformat(timespec="seconds"),
+        "question": question,
+        "best_sim": round(best_sim, 4),
+        "verdict": verdict,
+    }
+    FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with FEEDBACK_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 def build_context(results) -> str:
     parts = []
     for i, r in enumerate(results, 1):
@@ -325,6 +359,26 @@ with st.sidebar:
         "相似度仍在「检索结果」里显示，用来判断检索质量。"
     )
 
+    st.divider()
+    st.subheader("🔑 用你自己的 Key")
+    user_key = st.text_input(
+        "硅基流动 API Key",
+        type="password",
+        placeholder="sk-...",
+        help="填你自己的 key，问答就不消耗站长的额度。不填则用服务器上配置的那个。"
+             "免费申请：https://cloud.siliconflow.cn/",
+    )
+    if user_key and user_key != st.session_state.get("_key_applied"):
+        st.session_state["user_key"] = user_key.strip()
+        st.session_state["_key_applied"] = user_key
+        # 换了 key 必须清缓存，否则检索器还在用旧 client
+        st.cache_resource.clear()
+        st.rerun()
+    if st.session_state.get("user_key"):
+        st.success("正在用你自己的 Key ✅")
+    else:
+        st.caption("当前用的是站点配置的 Key。")
+
     st.subheader("生成后端")
     if gw_ok:
         st.success("P1 网关：在线 ✅")
@@ -449,6 +503,19 @@ if question:
                 placeholder.empty()
                 st.error(f"生成失败：{type(e).__name__}: {str(e)[:200]}")
                 st.info("如果选了 P1 网关，确认它正在 127.0.0.1:6066 运行。")
+
+    # ---------------- 反馈 ----------------
+    # 为什么要有这个按钮：项目现在最缺的不是功能，是「真实用户提的问题」。
+    # 每一条反馈都会进 data/feedback.jsonl，成为下一批评测题的来源。
+    st.divider()
+    st.markdown("**这个答案对你有用吗？**")
+    c1, c2, c3 = st.columns([1, 1, 3])
+    if c1.button("👍 有用", key="fb_good"):
+        log_feedback(question, best, "good")
+        st.success("谢谢！已记录。")
+    if c2.button("👎 不对/没回答", key="fb_bad"):
+        log_feedback(question, best, "bad")
+        st.success("收到，会用来改进。方便的话把正确答案发给站长。")
 
 st.divider()
 st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")

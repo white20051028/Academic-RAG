@@ -54,6 +54,20 @@ def read_key() -> str:
     return paths.read_env("SILICONFLOW_API_KEY")
 
 
+def _looks_like_policy(text: str) -> bool:
+    """内容像不像制度条文。
+
+    判据用「第X条」这种条文结构，不用关键词——
+    「通知」「办法」在文件名和正文里到处都有，误判率太高；
+    而「第三条」这种写法只有真条文才有。
+
+    **为什么要这个函数**：文件名乱码是编码问题，不代表内容没价值。
+    实测 39 个乱码文件里混着《学位论文作假行为处理实施细则》
+    这类制度文件，一刀切会误杀。
+    """
+    return bool(re.search(r"第[一二三四五六七八九十百\d]+条", text[:3000]))
+
+
 def noise_reason(name: str, text: str) -> str | None:
     """判断一个文件是不是噪音；是的话返回原因。"""
     # 制度类永不剔除（否则「重修管理办法」会被「重修」误杀）
@@ -67,7 +81,9 @@ def noise_reason(name: str, text: str) -> str | None:
         if ord(c) > 127 and not ("\u4e00" <= c <= "\u9fff")
     )
     if len(name) > 6 and weird / len(name) > 0.2:
-        return "文件名乱码"
+        # 文件名乱码但内容有条文结构 → 保留（编码问题不该连累内容）
+        if not _looks_like_policy(text):
+            return "文件名乱码"
     # 内容像名单：学号/姓名高频出现
     if text.count("学号") > 20 or text.count("姓名") > 20:
         return "内容像名单"

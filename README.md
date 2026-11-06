@@ -122,6 +122,36 @@ python tools/eval.py --vector           # 纯向量基线
 streamlit run app.py
 ```
 
+## 分享给别人用
+
+**① 让别人用自己的 Key（最省事）**
+
+打开页面 → 左侧「🔑 用你自己的 Key」→ 粘贴自己的硅基流动 Key。
+
+不用改任何文件，花的是他自己的额度。免费申请：<https://cloud.siliconflow.cn/>
+
+**② 同一 WiFi**
+
+```bash
+streamlit run app.py --server.port 8501
+```
+
+启动后终端会打印 `Network URL: http://10.x.x.x:8501`，同一 WiFi 下的人浏览器打开即可。
+
+**③ 不同网络（公网）**
+
+```powershell
+# 装一次
+winget install Cloudflare.cloudflared
+
+# 每次用之前跑（先启动 Streamlit）
+cloudflared tunnel --url http://localhost:8501
+```
+
+输出里会出现 `https://xxx.trycloudflare.com`——任何人、任何网络都能打开。
+
+三个注意：免费隧道**每次重启换地址**；**你的电脑必须开着**（它不是部署到服务器，是你电脑当服务器）；**用的是你的 Key 和额度**，所以第 ① 条要先做好。
+
 ## 测试
 
 ```bash
