@@ -18,7 +18,6 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
 CHROMA = ROOT / "data" / "chroma"
-ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
 GATEWAY = "http://127.0.0.1:6066"
 EMBED_MODEL = "BAAI/bge-m3"
 CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
@@ -26,6 +25,7 @@ CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 # 判断层单独一个模块：线上和评测共用同一份逻辑，避免"测的"和"跑的"分叉
 sys.path.insert(0, str(ROOT / "tools"))
 import judge  # noqa: E402
+import paths  # noqa: E402
 
 PROMPT = """你是西安科技大学教务处的问答助手。只根据下面的资料回答问题。
 
@@ -43,17 +43,14 @@ PROMPT = """你是西安科技大学教务处的问答助手。只根据下面�
 
 
 def read_env(name: str) -> str:
-    """从 P1 的 .env 里读一个变量。
+    """读一个配置项。优先项目自己的 .env，没有再用环境变量/旧位置。
 
     注意这里有两类 key，不能混：
-      SILICONFLOW_API_KEY —— 上游模型服务的凭据（P1 内部用它调 Qwen）
-      GATEWAY_API_KEY     —— P1 网关自己的鉴权凭据（P2 调 P1 时要用这个）
+      SILICONFLOW_API_KEY —— 上游模型服务的凭据（调 Qwen 用）
+      GATEWAY_API_KEY     —— P1 网关自己的鉴权凭据（走 P1 时用这个）
     用错会直接 401。
     """
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        if line.startswith(f"{name}="):
-            return line.split("=", 1)[1].strip()
-    raise RuntimeError(f"没找到 {name}")
+    return paths.read_env(name)
 
 
 def read_key() -> str:

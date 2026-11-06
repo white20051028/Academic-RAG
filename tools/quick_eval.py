@@ -10,8 +10,9 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(r"D:\桌面\教务RAG")
-ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
+import paths
+from paths import ROOT
+
 EVAL = ROOT / "data" / "eval_set.jsonl"
 EVAL = next((Path(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--set=")), EVAL)
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -20,9 +21,7 @@ VEC_MODE = next((a.split("=")[1] for a in sys.argv if a.startswith("--vec=")), "
 
 
 def read_key():
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        if line.startswith("SILICONFLOW_API_KEY="):
-            return line.split("=", 1)[1].strip()
+    return paths.read_env("SILICONFLOW_API_KEY")
 
 
 def main():

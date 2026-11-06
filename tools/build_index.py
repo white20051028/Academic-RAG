@@ -22,12 +22,10 @@ from pathlib import Path
 
 import chunking
 
-ROOT = Path(r"D:\桌面\教务RAG")
-PROC = ROOT / "data" / "processed"
-DATA = ROOT / "data"
-CHROMA = ROOT / "data" / "chroma"          # 已弃用，保留常量防止旧代码引用报错
+from paths import DATA, PROC, ROOT
+
 STATS = ROOT / "data" / "index_stats.json"
-ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
+CHROMA = ROOT / "data" / "chroma"          # 已弃用，保留常量防止旧代码引用报错
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
@@ -51,10 +49,9 @@ NOISE_WORDS = (
 
 
 def read_key() -> str:
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        if line.startswith("SILICONFLOW_API_KEY="):
-            return line.split("=", 1)[1].strip()
-    raise RuntimeError("没找到 SILICONFLOW_API_KEY")
+    import paths
+
+    return paths.read_env("SILICONFLOW_API_KEY")
 
 
 def noise_reason(name: str, text: str) -> str | None:

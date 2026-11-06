@@ -21,10 +21,10 @@ import json
 import sys
 from pathlib import Path
 
+import paths
+from paths import ROOT
 
-ROOT = Path(r"D:\桌面\教务RAG")
 CHROMA = ROOT / "data" / "chroma"
-ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
 DEFAULT_SET = ROOT / "data" / "eval_set.jsonl"
 K = 5
 EMBED_MODEL = "BAAI/bge-m3"
@@ -32,10 +32,7 @@ REFUSE_THRESHOLD = 0.60      # 用 50 条样本标定，见 docs/v0-基线.md
 
 
 def read_key() -> str:
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        if line.startswith("SILICONFLOW_API_KEY="):
-            return line.split("=", 1)[1].strip()
-    raise RuntimeError("没找到 SILICONFLOW_API_KEY")
+    return paths.read_env("SILICONFLOW_API_KEY")
 
 
 def load_set(path: Path) -> list[dict]:

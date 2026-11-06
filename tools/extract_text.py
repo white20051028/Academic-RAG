@@ -26,10 +26,13 @@ from pathlib import Path
 import pymupdf
 from docx import Document
 
-ROOT = Path(r"D:\桌面\教务RAG")
+from paths import ROOT
+
 RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "processed"
 MANIFEST = ROOT / "data" / "extract_manifest.csv"
+# 7-Zip 是外部工具，路径因机器而异；Windows 默认装在 Program Files。
+# 没有装的话，解压 .rar 那一步会失败——其余格式不依赖它。
 SEVENZIP = Path(r"C:\Program Files\7-Zip\7z.exe")
 
 

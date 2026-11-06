@@ -21,8 +21,9 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(r"D:\桌面\教务RAG")
-ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
+import paths
+from paths import ROOT
+
 MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 sys.path.insert(0, str(ROOT / "tools"))
@@ -30,10 +31,7 @@ import judge  # noqa: E402
 
 
 def read_key() -> str:
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        if line.startswith("SILICONFLOW_API_KEY="):
-            return line.split("=", 1)[1].strip()
-    raise RuntimeError("没找到 SILICONFLOW_API_KEY")
+    return paths.read_env("SILICONFLOW_API_KEY")
 
 
 def load_set(path: Path) -> list[dict]:

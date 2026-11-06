@@ -15,6 +15,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 BASE = "https://jwc.xust.edu.cn"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -29,7 +30,7 @@ COLUMNS = {
 }
 
 PRIVACY_WORDS = ("公示", "名单")
-ROOT = r"D:\桌面\教务RAG"
+ROOT = str(Path(__file__).resolve().parent.parent)
 OUT_RAW = os.path.join(ROOT, "data", "raw")
 OUT_MANIFEST = os.path.join(ROOT, "data", "manifest.csv")
 DELAY = 0.4

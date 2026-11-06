@@ -19,7 +19,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-OUT = Path(r"D:\桌面\教务RAG\data\processed")
+from paths import PROC as OUT
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120 Safari/537.36")
 

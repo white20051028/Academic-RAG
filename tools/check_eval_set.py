@@ -15,7 +15,8 @@ import json
 from pathlib import Path
 
 
-ROOT = Path(r"D:\桌面\教务RAG")
+from paths import ROOT
+
 CHROMA = ROOT / "data" / "chroma"
 EVAL_SET = ROOT / "data" / "eval_set.jsonl"
 
