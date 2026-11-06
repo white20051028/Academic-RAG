@@ -10,6 +10,7 @@
 """
 
 import re
+import sys
 from pathlib import Path
 
 import httpx
@@ -21,6 +22,10 @@ ENV_FILE = Path(r"D:\桌面\多轮对话机器人项目\.env")
 GATEWAY = "http://127.0.0.1:6066"
 EMBED_MODEL = "BAAI/bge-m3"
 CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+# 判断层单独一个模块：线上和评测共用同一份逻辑，避免"测的"和"跑的"分叉
+sys.path.insert(0, str(ROOT / "tools"))
+import judge  # noqa: E402
 
 PROMPT = """你是西安科技大学教务处的问答助手。只根据下面的资料回答问题。
 
@@ -153,47 +158,6 @@ def suggest_where(question: str) -> list[tuple[str, list[str]]]:
     hits = [(title, steps) for words, title, steps in WHERE_TO_LOOK
             if any(w in question for w in words)]
     return hits if hits else [("下一步", DEFAULT_WHERE.split("\n"))]
-
-
-def check_answerable(question: str, results) -> bool:
-    """让模型判断：这些资料能不能回答问题？
-
-    关键设计：**要求它指出具体依据**。
-    第一版只问"能不能回答"，结果它看到体育课安排里有老师名字就说"能"——
-    问的是数学老师，资料里是体育老师，字面相关但领域完全错。
-
-    现在要求它必须摘出回答这个问题的那句话；摘不出来就答"不能"。
-    """
-    from openai import OpenAI
-
-    probe = (
-        "任务：判断下面这些资料能不能回答用户的问题。\n\n"
-        "判断标准（严格）：\n"
-        "- 资料里必须有**直接回答**这个问题的内容（具体条件、数字、期限、流程）\n"
-        "- 只有「字面相关」不算。例如：问「数学老师是谁」，资料里全是体育老师名单 → 不能\n"
-        "- 只有「提到这个词」但没给答案不算。例如：问「实习怎么请假」，"
-        "资料只写「请假不超过2周」（讲的是新生入学）→ 不能\n\n"
-        f"资料：\n{build_context(results)[:3000]}\n\n"
-        f"用户问题：{question}\n\n"
-        "请按下面格式回答：\n"
-        "能 | 依据：<摘出资料里直接回答该问题的那句话>\n"
-        "或\n"
-        "不能 | 原因：<为什么资料不够>\n"
-    )
-    try:
-        client = OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
-        r = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[{"role": "user", "content": probe}],
-            max_tokens=120,
-            temperature=0,
-        )
-        ans = (r.choices[0].message.content or "").strip()
-        first = ans.split("\n", 1)[0]
-        # 必须：开头"能"，而且真的给出了依据
-        return first.startswith("能") and "依据" in first
-    except Exception:  # noqa: BLE001
-        return True
 
 
 @st.cache_resource
@@ -380,6 +344,12 @@ with st.sidebar:
 question = st.text_input("你的问题", placeholder="例如：转专业需要什么条件？")
 
 if question:
+    # 闲聊在检索之前拦住。这类问题检索出来的是垃圾，走拒答流程会回一段
+    # "教务处电话"，比不回答更糟。规则判断，不调模型，零延迟。
+    if judge.is_smalltalk(question):
+        st.info(judge.SMALLTALK_REPLY)
+        st.stop()
+
     with st.spinner("检索中…"):
         results, best = retrieve(question, k)
 
@@ -418,7 +388,9 @@ if question:
     elif best < 0.70:
         # 灰区：字面相关，但不确定真能回答 —— 让模型当裁判
         with st.spinner("确认资料是否够用…"):
-            ok = check_answerable(question, results)
+            ok = judge.check_answerable(
+                question, build_context(results), get_embed_client(), CHAT_MODEL
+            )
         if not ok:
             show_refusal(
                 f"检索到的内容字面相关（相似度 {best:.3f}），"
