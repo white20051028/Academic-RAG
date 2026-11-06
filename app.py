@@ -27,6 +27,7 @@ CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 sys.path.insert(0, str(ROOT / "tools"))
 import judge  # noqa: E402
 import paths  # noqa: E402
+import planner  # noqa: E402
 
 PROMPT = """你是西安科技大学教务处的问答助手。只根据下面的资料回答问题。
 
@@ -195,15 +196,55 @@ def get_retriever():
 
 
 def retrieve(query: str, k: int, rewrite: bool = True):
-    """检索。rewrite=True 时 BM25 路用改写后的书面词（口语问题提升 10 个点）。
+    """检索。复合问题会拆成几个子查询，分别检索后合并。
 
     vec_mode="orig" 是量出来的，不是拍的：向量路也用改写后，口语集
     Recall@5 从 83% 掉到 79%。改写把原句的语序和限定词抹平了，
     而向量路恰恰靠这些区分"保研"和"推免材料归档"。
+
+    **为什么合并要"轮流取"而不是按分数排序**：
+    「辅修能抵学分吗，最多抵多少」拆成两个子查询，第一个子查询的 5 条
+    通常分数都比第二个高。如果直接按 RRF 排序取 top-5，第二个子查询的
+    结果会被挤光——等于拆了也没用。轮流取保证每个子问题都有代表。
     """
     retriever = get_retriever()
-    results, best_sim = retriever.search(query, k=k, rewrite=rewrite, vec_mode="orig")
-    return results, best_sim
+
+    subs = [query]
+    if planner.is_compound(query):
+        subs = planner.split(query, get_embed_client(), CHAT_MODEL)
+
+    # 复合问题必须放大检索宽度。
+    #
+    # 实测（15 道复合题）：拆成完整问句但 k 不变时，完整答对从 86.7% 掉到 80%——
+    # 因为 2 个子查询只能分到 5 条，每个子问题拿到 2-3 条，反而更少。
+    # 把每个子查询的宽度翻倍（合并后同样翻倍），子答案命中率 90% → 93.3%，
+    # 「至少答出一半」从 93.3% → 100%。
+    #
+    # 为什么不是无限放大：宽度越大，塞给模型的无关内容越多，生成质量会掉。
+    width = min(k * 2, 10) if len(subs) > 1 else k
+
+    per_sub, best = [], 0.0
+    for sub in subs:
+        res, sim = retriever.search(sub, k=width, rewrite=rewrite, vec_mode="orig")
+        best = max(best, sim)
+        per_sub.append(res)
+
+    if len(per_sub) == 1:
+        return per_sub[0], best
+
+    seen, merged = set(), []
+    while len(merged) < width and any(per_sub):
+        for bucket in per_sub:
+            if len(merged) >= width:
+                break
+            while bucket:
+                r = bucket.pop(0)
+                if r["id"] in seen:
+                    continue
+                seen.add(r["id"])
+                merged.append(r)
+                break
+    return merged, best
 
 
 FEEDBACK_FILE = ROOT / "data" / "feedback.jsonl"
