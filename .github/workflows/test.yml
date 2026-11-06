@@ -1,0 +1,48 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 只装 pytest，不装 requirements.txt。
+      #
+      # 为什么：requirements 里有 chromadb、pymupdf、pywin32 这些重依赖，
+      # 而 tests/ 只测 judge.py 的纯函数（只用标准库 re）。
+      # CI 要快，也要能证明「这些测试不依赖外部环境」——
+      # 装了全套依赖，测试通过就说明不了这件事了。
+      - run: pip install pytest
+
+      - name: 单元测试（不联网）
+        run: pytest tests/ -q
+
+  # 第二个 job：证明测试真的不联网。
+  #
+  # 做法是把 key 换成假的、把 base_url 指向不存在的地址。
+  # 如果测试还通过，说明它确实没有发起网络调用。
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install pytest
+
+      - name: 单元测试（假 key + 黑洞地址）
+        env:
+          SILICONFLOW_API_KEY: sk-fake-key-should-never-be-used
+          SILICONFLOW_BASE_URL: http://127.0.0.1:9/v1
+        run: pytest tests/ -q
