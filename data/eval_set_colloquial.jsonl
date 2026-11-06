@@ -25,5 +25,22 @@
 {"q": "保研要求是什么", "expect_source": "推荐免试", "expect_keywords": ["推荐", "免试"], "category": "口语缩写-保研"}
 {"q": "挂科了怎么办", "expect_source": "重修管理办法", "expect_keywords": ["重修"], "category": "口语缩写-挂科"}
 {"q": "绩点不够会不会拿不到学位证", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.30", "2.00"], "category": "口语缩写-绩点"}
-{"q": "翘课会怎么样", "expect_source": "学籍管理规定", "expect_keywords": ["旷课"], "category": "口语缩写-翘课"}
-{"q": "延毕要怎么申请", "expect_source": "学籍管理规定", "expect_keywords": ["延长学习年限"], "category": "口语缩写-延毕"}
+{"q": "单门课缺课太多会怎么样", "expect_source": "学籍管理规定", "expect_keywords": ["缺课时数", "三分之一"], "category": "口语-学籍"}
+{"q": "毕业设计会被抽检吗", "expect_source": "毕业设计（论文）抽检实施细则", "expect_keywords": ["抽检比例"], "category": "毕设-抽检"}
+{"q": "毕设抽检不合格会怎么样", "expect_source": "毕业设计（论文）抽检实施细则", "expect_keywords": ["不同意答辩"], "category": "毕设-抽检"}
+{"q": "省级毕设抽检多久一次", "expect_source": "毕业设计（论文）抽检实施细则", "expect_keywords": ["每年开展一次"], "category": "毕设-抽检"}
+{"q": "抽检结果会影响答辩资格吗", "expect_source": "毕业设计（论文）抽检实施细则", "expect_keywords": ["答辩资格"], "category": "毕设-抽检"}
+{"q": "论文抄袭会被取消学位吗", "expect_source": "学术不端行为查处细则", "expect_keywords": ["取消", "学位"], "category": "学术不端"}
+{"q": "举报学术不端要实名吗", "expect_source": "学术不端行为查处细则", "expect_keywords": ["实名"], "category": "学术不端"}
+{"q": "对学校处理不服怎么申诉", "expect_source": "学术不端行为查处细则", "expect_keywords": ["申诉"], "category": "学术不端"}
+{"q": "学术不端调查要几个人", "expect_source": "学术不端行为查处细则", "expect_keywords": ["专家组"], "category": "学术不端"}
+{"q": "微专业要修多少学分", "expect_source": "微专业管理办法", "expect_keywords": ["学分"], "category": "微专业"}
+{"q": "微专业能拿学位证吗", "expect_source": "微专业管理办法", "expect_keywords": ["不具有学士学位授予资格"], "category": "微专业"}
+{"q": "微专业要读几个学期", "expect_source": "微专业管理办法", "expect_keywords": ["学期"], "category": "微专业"}
+{"q": "微专业成绩算进主修绩点吗", "expect_source": "微专业管理办法", "expect_keywords": ["记入主修"], "category": "微专业"}
+{"q": "推免综合成绩怎么算", "expect_source": "推荐免试攻读研究生工作实施办法", "expect_keywords": ["85%"], "category": "推免"}
+{"q": "推免综合素质最多多少分", "expect_source": "推荐免试攻读研究生工作实施办法", "expect_keywords": ["15"], "category": "推免"}
+{"q": "公选课算进推免成绩吗", "expect_source": "推荐免试攻读研究生工作实施办法", "expect_keywords": ["公共选修"], "category": "推免"}
+{"q": "推免需要准备哪些材料", "expect_source": "推荐免试攻读研究生工作实施办法", "expect_keywords": ["申请表"], "category": "推免"}
+{"q": "绩点2.0还能申请学位吗", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["2.00"], "category": "学位"}
+{"q": "发表核心期刊论文能补绩点吗", "expect_source": "学士学位授予工作实施办法", "expect_keywords": ["核心期刊"], "category": "学位"}

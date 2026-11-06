@@ -8,3 +8,4 @@
 {"q": "怎么申请国家奖学金", "expect_no_answer": true, "why": "奖学金评定办法归学生处，未抓取"}
 {"q": "考研需要什么条件", "expect_no_answer": true, "why": "研究生招生，不在本科教务制度里"}
 {"q": "我们学校全国排名多少", "expect_no_answer": true, "why": "学校概况"}
+{"q": "延毕要怎么申请", "expect_no_answer": true, "why": "语料里没有「延长学习年限申请流程」，只有辅修/本硕连读提到不延长", "category": "拒答-语料缺失"}
