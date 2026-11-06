@@ -89,23 +89,23 @@ def decide(question: str, results, sim: float, client) -> tuple[str, str]:
     """复现 app.py 的判定链。返回 (最终结论, 说明)。
 
     结论取值：
-      answer         最终答了
-      refuse_pre     低于阈值，直接拒
-      refuse_judge   进了判断层，模型判不够
-      smalltalk      闲聊
+      answer        最终答了
+      refuse_judge  判断层判资料不够
+      smalltalk     闲聊
+
+    2026-11-06 拆掉了「低于 0.60 直接拒」那道闸门：
+    问「我想服兵役」向量分只有 0.544，但资料里白纸黑字有答案。
+    现在相似度只用于「≥ FAST_PATH 直接答」这条快速通道，不再决定拒答。
     """
     if judge.is_smalltalk(question):
         return "smalltalk", "规则判为闲聊"
 
-    if sim < judge.DEFAULT_MIN_SCORE:
-        return "refuse_pre", f"相似度 {sim:.3f} < {judge.DEFAULT_MIN_SCORE}"
+    if sim >= judge.FAST_PATH:
+        return "answer", f"相似度 {sim:.3f} ≥ {judge.FAST_PATH}，直接答"
 
-    if sim < judge.GRAY_HIGH:
-        ok = judge.check_answerable(question, build_context(results), client, CHAT_MODEL)
-        return ("answer", f"灰区 {sim:.3f}，模型判能答") if ok else \
-               ("refuse_judge", f"灰区 {sim:.3f}，模型判不能")
-
-    return "answer", f"相似度 {sim:.3f} ≥ {judge.GRAY_HIGH}，直接答"
+    ok = judge.check_answerable(question, build_context(results), client, CHAT_MODEL)
+    return ("answer", f"判断层判能答（相似度 {sim:.3f}）") if ok else \
+           ("refuse_judge", f"判断层判资料不够（相似度 {sim:.3f}）")
 
 
 def main():
@@ -125,7 +125,7 @@ def main():
         refuse_items = refuse_items[:limit]
 
     print(f"索引 {r.size} 个 chunk ｜ 判断层：{CHAT_MODEL}")
-    print(f"阈值 {judge.DEFAULT_MIN_SCORE} ｜ 灰区上限 {judge.GRAY_HIGH}\n")
+    print(f"快速通道 ≥{judge.FAST_PATH} 直接答 ｜ 其余全走判断层\n")
 
     # ---------- 一、闲聊规则（不调 API） ----------
     print("=" * 60)
@@ -151,7 +151,7 @@ def main():
         q = item["q"]
         res, sim = r.search(q, k=5, rewrite=True, vec_mode="orig")
         verdict, why = decide(q, res, sim, client)
-        if sim < judge.GRAY_HIGH:
+        if sim < judge.FAST_PATH:
             gray_used += 1
         ok = verdict == "answer"
         answered += ok
@@ -176,7 +176,7 @@ def main():
 
     # ---------- 三、该拒的（期望最终 refuse_*） ----------
     print("=" * 60)
-    print(f"③ 该拒的 {len(refuse_items)} 条（期望 refuse_pre / refuse_judge）")
+    print(f"③ 该拒的 {len(refuse_items)} 条（期望 refuse_judge）")
     print("=" * 60)
     refused = 0
     saved_by_judge = 0
@@ -184,7 +184,7 @@ def main():
         q = item["q"]
         res, sim = r.search(q, k=5, rewrite=True, vec_mode="orig")
         verdict, why = decide(q, res, sim, client)
-        ok = verdict in ("refuse_pre", "refuse_judge")
+        ok = verdict == "refuse_judge"
         refused += ok
         if verdict == "refuse_judge":
             saved_by_judge += 1

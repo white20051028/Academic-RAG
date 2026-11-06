@@ -323,10 +323,9 @@ gw_ok = gateway_available()
 with st.sidebar:
     st.subheader("参数")
     k = st.slider("召回条数", 1, 10, 5)
-    min_score = st.slider(
-        "相似度下限（低于它直接拒答）", 0.0, 0.9, 0.60, 0.05,
-        help="0.60 是用 50 条评测集校准出来的：答对的样本相似度最低 0.618；"
-             "而「高数老师是谁」这类越界问题只有 0.516。",
+    st.caption(
+        "拒答不再看相似度阈值——由判断层读资料内容后决定。"
+        "相似度仍在「检索结果」里显示，用来判断检索质量。"
     )
 
     st.subheader("生成后端")
@@ -381,27 +380,32 @@ if question:
                 if s.strip():
                     st.markdown(f"- {s}")
 
-    if best < min_score:
-        show_refusal(f"最高相似度只有 {best:.3f}，低于可信阈值 {min_score}。")
-        can_answer = False
-
-    elif best < 0.70:
-        # 灰区：字面相关，但不确定真能回答 —— 让模型当裁判
+    # 判定只看「资料够不够」，不看相似度分数。
+    #
+    # 0.60 那道闸门 2026-11-06 拆掉了。起因：问「我想服兵役」，向量分只有 0.544，
+    # 被闸门直接拒——但《学籍管理规定》里写着「应征参加解放军，保留学籍至退役后2年」，
+    # 判断层也能一字不差地摘出这句。分数低不等于没答案，只说明问法和文档用词不一样。
+    # 实测全量走判断层：答非所问 3→0，该拒没拒 2→0，总分不降。见 docs/v8。
+    if best >= judge.FAST_PATH:
+        can_answer = True
+    else:
         with st.spinner("确认资料是否够用…"):
             ok = judge.check_answerable(
                 question, build_context(results), get_embed_client(), CHAT_MODEL
             )
-        if not ok:
+        if ok:
+            can_answer = True
+            if best < judge.DEFAULT_MIN_SCORE:
+                st.info(
+                    f"相似度只有 {best:.3f}（低于旧阈值 {judge.DEFAULT_MIN_SCORE}），"
+                    f"但模型在资料里找到了能回答的依据。"
+                )
+        else:
             show_refusal(
-                f"检索到的内容字面相关（相似度 {best:.3f}），"
-                f"但模型判断里面没有能直接回答的具体内容。"
+                f"检索到的内容和问题相关（相似度 {best:.3f}），"
+                f"但资料里没有能直接回答的具体内容。"
             )
             can_answer = False
-        else:
-            st.info(f"相似度 {best:.3f} 属灰区，模型确认资料够用。")
-            can_answer = True
-    else:
-        can_answer = True
 
     if can_answer:
         # 引用区先显示：检索完就有，不用等生成
