@@ -25,6 +25,7 @@ CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 # 判断层单独一个模块：线上和评测共用同一份逻辑，避免"测的"和"跑的"分叉
 sys.path.insert(0, str(ROOT / "tools"))
+import intake  # noqa: E402
 import judge  # noqa: E402
 import paths  # noqa: E402
 import planner  # noqa: E402
@@ -272,6 +273,62 @@ def log_feedback(question: str, best_sim: float, verdict: str) -> None:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def build_prompt(question: str, context: str, intent: str | None,
+                 slots: dict, missing: list) -> str:
+    """按「用户提供了多少信息」拼不同的 prompt。
+
+    三档（见 docs/产品判断-先给规则再引导.md）：
+
+      信息完整  → 直接对照条件判断，说能/不能、差在哪
+      信息不全  → 先完整列要求，结尾引导补信息
+      没有意图  → 通用问答（和以前一样）
+
+    **为什么不能只用一个 prompt**：
+    「转专业有啥要求」如果按"判断类"prompt 喂给模型，它会硬编一个
+    "你不能转"——用户什么信息都没给，凭什么判断。反过来
+    「我大二绩点2.8能转吗」如果按"列规则"prompt 喂，它会把整篇制度
+    抄一遍，用户还得自己对照。两种都要浪费用户时间。
+    """
+    base = PROMPT.format(context=context, question=question)
+
+    if not intent:
+        return base
+
+    if slots and not missing:
+        # 信息齐：直接判断
+        info = "、".join(f"{k}={v}" for k, v in slots.items())
+        return base + (
+            f"\n\n【用户自己的情况】{info}\n\n"
+            f"请**对照资料里的条件逐条判断**，明确回答：\n"
+            f"1. 能不能（能/不能/需要补充其他条件）\n"
+            f"2. 依据是资料里哪一条（标 [n]）\n"
+            f"3. 如果不能或差一点，说明差在哪、有没有补救办法\n"
+            f"不要只把制度抄一遍，用户要的是结论。"
+        )
+
+    if slots and missing:
+        # 信息缺一部分：列规则 + 指出缺什么
+        info = "、".join(f"{k}={v}" for k, v in slots.items())
+        need = "、".join(missing)
+        return base + (
+            f"\n\n【用户自己的情况】{info}（还不全）\n\n"
+            f"请：\n"
+            f"1. 完整列出资料里关于这件事的**要求和限制**（条件、数字、流程）\n"
+            f"2. 告诉用户：按已知信息，目前还缺 {need} 才能判断\n"
+            f"3. 结尾用一句话引导他补充这些信息\n"
+            f"不要凭空判断「能不能」——信息不全时硬给结论比不回答更糟。"
+        )
+
+    # 完全没提供信息：列完整规则 + 引导
+    return base + (
+        f"\n\n用户没有提供自己的情况。请：\n"
+        f"1. 完整、清楚地列出资料里关于这件事的**全部要求和限制**"
+        f"（绩点门槛、年级限制、时间节点、需要提交的材料、流程）\n"
+        f"2. 不要猜测用户的情况，也不要说「你可以/不可以」\n"
+        f"3. 结尾引导：告诉他补充哪些信息，你就能帮他判断"
+    )
+
+
 def build_context(results) -> str:
     parts = []
     for i, r in enumerate(results, 1):
@@ -441,6 +498,11 @@ if question:
         st.info(judge.SMALLTALK_REPLY)
         st.stop()
 
+    # 看用户提供了多少信息 —— 决定后面用哪种回答方式
+    intent = intake.detect_intent(question)
+    slots = intake.extract_slots(question, intent) if intent else {}
+    missing = intake.missing_slots(intent, slots) if intent else []
+
     with st.spinner("检索中…"):
         results, best = retrieve(question, k)
 
@@ -457,6 +519,16 @@ if question:
             st.text(doc)
 
     st.subheader("② 回答")
+
+    # 让用户知道系统是怎么理解他的问题的（透明度）。
+    # 这也是产品判断的落地：用户不提供信息时，系统不硬编结论，而是说明缺什么。
+    if intent:
+        if slots and not missing:
+            st.caption(f"识别到你在问「{intent}」，信息齐全 → 直接给判断")
+        elif slots:
+            st.caption(f"识别到你在问「{intent}」，还差「{'、'.join(missing)}」→ 先列要求")
+        else:
+            st.caption(f"识别到你在问「{intent}」→ 先列要求，需要时再补信息")
 
     def show_refusal(reason: str):
         """拒答时的完整交代：说不知道 → 说为什么 → **给能立刻动手的下一步**。"""
@@ -516,7 +588,7 @@ if question:
         st.divider()
 
         if st.button("生成回答", type="primary"):
-            prompt = PROMPT.format(context=build_context(results), question=question)
+            prompt = build_prompt(question, build_context(results), intent, slots, missing)
             placeholder = st.empty()
             acc = ""
             try:

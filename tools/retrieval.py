@@ -12,6 +12,7 @@
 """
 
 import json
+import re
 
 import jieba
 import numpy as np
@@ -164,7 +165,34 @@ class HybridRetriever:
         # 把真正的答案（向量 rank 1，只占一个 chunk）顶掉。
         # 实测：不去重 Recall@5 = 3.64%，去重后应回到 90%+。
         MAX_PER_FILE = 2
-        ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+
+        # ---- 年份降权 ----
+        #
+        # 同一主题常有多个年份的版本：2021 / 2023 / 2025 / 2026 四份《转专业通知》。
+        # 它们在语义上几乎一样，会互相稀释 top-5，把最新版本的关键段落挤出去。
+        #
+        # 实测：「我大二，绩点2.8，能转专业吗」
+        #   top-5 被四个年份各占一条，全是不同段落，
+        #   而「平均学分绩点不低于 3.00」这条就在 2026 版里，没进来。
+        #   结果模型回答「资料里没有明确规定绩点的具体要求」——资料其实有。
+        #
+        # 修法：同主题只让最新年份拿全分，旧版本乘 0.5。
+        # **降权不删除**：万一新版本没覆盖某个条款，旧版本还有机会被召回。
+        best_year: dict[str, int] = {}
+        for idx in scores:
+            src = self.metas[idx].get("source", "")
+            t = _topic_key(src)
+            best_year[t] = max(best_year.get(t, 0), _year_of(src))
+
+        ranked = []
+        for idx, s in scores.items():
+            src = self.metas[idx].get("source", "")
+            y = _year_of(src)
+            if y and y < best_year.get(_topic_key(src), y):
+                s = s * 0.5
+            ranked.append((idx, s))
+        ranked.sort(key=lambda kv: -kv[1])
+
         picked, per_file = [], {}
         for idx, s in ranked:
             src = self.metas[idx].get("source", "")
@@ -185,3 +213,20 @@ class HybridRetriever:
             for idx, s in picked
         ]
         return results, best_sim
+
+def _year_of(source: str) -> int:
+    """从文件名里抠出年份。没有年份返回 0。"""
+    m = re.search(r"(20\d{2})", source)
+    return int(m.group(1)) if m else 0
+
+
+def _topic_key(source: str) -> str:
+    """去掉编号和年份，得到主题。
+
+    「6041_关于开展2025年度本科生转专业工作的通知.txt」
+    「5272_关于开展2023年度本科生转专业工作的通知.txt」
+    都变成「_关于开展年度本科生转专业工作的通知.txt」，视为同一主题的不同版本。
+    """
+    s = re.sub(r"^\d+_", "", source)
+    s = re.sub(r"20\d{2}", "", s)
+    return s
