@@ -33,6 +33,7 @@ CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 sys.path.insert(0, str(ROOT / "tools"))
 import judge  # noqa: E402
+import search as search_mod  # noqa: E402
 
 # 闲聊测试：规则判断，不调 API。期望全部被 is_smalltalk 认出来。
 SMALLTALK_CASES = ["你好", "在吗", "谢谢", "你是谁", "你能干什么", "您好呀", "hello", "好的"]
@@ -147,7 +148,7 @@ def main():
     miss_answered = 0    # 答了 + 检索没命中 = 答非所问
     for idx, item in enumerate(answer_items, 1):
         q = item["q"]
-        res, sim = r.search(q, k=5, rewrite=True, vec_mode="orig")
+        res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
         verdict, why = decide(q, res, sim, client)
         if sim < judge.FAST_PATH:
             gray_used += 1
@@ -180,7 +181,7 @@ def main():
     saved_by_judge = 0
     for idx, item in enumerate(refuse_items, 1):
         q = item["q"]
-        res, sim = r.search(q, k=5, rewrite=True, vec_mode="orig")
+        res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
         verdict, why = decide(q, res, sim, client)
         ok = verdict == "refuse_judge"
         refused += ok
