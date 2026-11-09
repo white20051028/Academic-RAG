@@ -263,6 +263,50 @@ def fun_reply(question: str) -> str | None:
     return None
 
 
+# ---------------- 二选一：随机站一边 ----------------
+#
+# 用户的想法：打趣的问题经常是「A 还是 B」（梅西还是 C罗、张元英还是柳志敏），
+# 检测到明显是二选一、又跟教务无关，就随机挑一个回答。
+#
+# **为什么必须明说「瞎选的」**：
+# 不说的话，用户会以为系统真有观点，甚至拿去当依据。
+# 加一句「别当真」，既保留趣味，又不会误导——这是这个功能能存在的前提。
+
+import random
+
+# 「A 还是 B」：A/B 各允许 2-20 个字符，允许中间带「更」「比较」「好」这类尾巴
+_CHOICE_RE = re.compile(
+    r"^\s*(.{2,20}?)\s*(?:还是|or|和|vs\.?|VS)\s*(.{2,20}?)\s*"
+    r"(?:更|比较|哪个|谁)?[^\w\s]{0,3}\s*[呢吗啊]?[？?。]?\s*$",
+    re.IGNORECASE,
+)
+
+# 这些尾巴要剪掉，避免把「哪个好」当成选项的一部分
+_TAIL_WORDS = ("更好", "更强", "更厉害", "更值得", "哪个好", "哪个强", "谁更强",
+               "谁更厉害", "好", "强", "厉害", "值得")
+
+
+def pick_choice(question: str) -> str | None:
+    """如果是「A 还是 B」的二选一，随机选一个，并说明是瞎选的。"""
+    m = _CHOICE_RE.match(question.strip())
+    if not m:
+        return None
+
+    a = m.group(1).strip(" ，,。")
+    b = m.group(2).strip(" ，,。")
+    for w in _TAIL_WORDS:
+        if b.endswith(w):
+            b = b[: -len(w)].strip(" ，,") or b
+    if not a or not b or a == b:
+        return None
+    # 太短的当语气词，不算选项
+    if len(a) < 2 or len(b) < 2:
+        return None
+
+    pick = random.choice([a, b])
+    return f"{pick}。\n\n（我瞎选的，别当真 😅）"
+
+
 @st.cache_resource
 def get_embed_client():
     from openai import OpenAI
@@ -606,7 +650,7 @@ if question:
     # 白等 5-8 秒，最后换来一句「不在我收录的教务文件里」——既慢又扫兴。
     # 直接回一句轻松的，秒出。
     if refusal_kind(question) == "off_topic":
-        joke = fun_reply(question)
+        joke = fun_reply(question) or pick_choice(question)
         if joke:
             # 彩蛋命中：先给一句人话，再说清这不是我的业务范围
             st.markdown(f"### {joke}")
