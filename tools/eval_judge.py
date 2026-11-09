@@ -21,6 +21,7 @@
 
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import paths
@@ -30,6 +31,7 @@ ANSWER_SET = ROOT / "data" / "eval_set_colloquial.jsonl"
 REFUSE_SET = ROOT / "data" / "eval_set_refusal.jsonl"
 EMBED_MODEL = "BAAI/bge-m3"
 CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+BATCH = 4          # 批量并发的条数。每条内部已经 4 个并发检索，再高会撞限流
 
 sys.path.insert(0, str(ROOT / "tools"))
 import judge  # noqa: E402
@@ -142,19 +144,29 @@ def main():
     print("=" * 60)
     print(f"② 该答的 {len(answer_items)} 条（期望最终 answer）")
     print("=" * 60)
+
+    def run_answer(item):
+        """跑一条完整的判定链。并发执行，只返回结果不打印。"""
+        q = item["q"]
+        res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
+        verdict, why = decide(q, res, sim, client)
+        return {"q": q, "sim": sim, "verdict": verdict, "why": why, "hit": is_hit(item, res)}
+
+    # 批量并发：每条内部已经有 4 个并发检索，这里再叠一层。
+    # 57 条串行要 18 分钟，4 条一批大约 1/4。再高会撞 SiliconFlow 的限流。
+    with ThreadPoolExecutor(max_workers=BATCH) as pool:
+        answer_results = list(pool.map(run_answer, answer_items))
+
     answered = 0
     gray_used = 0
     hit_answered = 0     # 答了 + 检索命中 = 真答对
     miss_answered = 0    # 答了 + 检索没命中 = 答非所问
-    for idx, item in enumerate(answer_items, 1):
-        q = item["q"]
-        res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
-        verdict, why = decide(q, res, sim, client)
+    for idx, r0 in enumerate(answer_results, 1):
+        q, sim, verdict, why, hit = r0["q"], r0["sim"], r0["verdict"], r0["why"], r0["hit"]
         if sim < judge.FAST_PATH:
             gray_used += 1
         ok = verdict == "answer"
         answered += ok
-        hit = is_hit(item, res)
         if ok and hit:
             hit_answered += 1
         elif ok and not hit:
@@ -166,7 +178,6 @@ def main():
             print(f"         └─ {why}")
         elif not hit:
             print(f"         └─ 检索没命中正确答案，答了也是错的")
-        sys.stdout.flush()
 
     print(f"\n  最终答出 {answered}/{len(answer_items)} = {answered/len(answer_items):.1%}")
     print(f"  ├─ 其中真答对（检索命中）  {hit_answered}")
@@ -177,12 +188,19 @@ def main():
     print("=" * 60)
     print(f"③ 该拒的 {len(refuse_items)} 条（期望 refuse_judge）")
     print("=" * 60)
-    refused = 0
-    saved_by_judge = 0
-    for idx, item in enumerate(refuse_items, 1):
+    def run_refuse(item):
         q = item["q"]
         res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
         verdict, why = decide(q, res, sim, client)
+        return {"q": q, "verdict": verdict, "why": why}
+
+    with ThreadPoolExecutor(max_workers=BATCH) as pool:
+        refuse_results = list(pool.map(run_refuse, refuse_items))
+
+    refused = 0
+    saved_by_judge = 0
+    for idx, r0 in enumerate(refuse_results, 1):
+        q, verdict, why = r0["q"], r0["verdict"], r0["why"]
         ok = verdict == "refuse_judge"
         refused += ok
         if verdict == "refuse_judge":
@@ -190,7 +208,6 @@ def main():
         print(f"  [{idx:>2}/{len(refuse_items)}] {'✅' if ok else '❌'} {verdict:<12} {q}")
         if not ok:
             print(f"         └─ {why}")
-        sys.stdout.flush()
 
     print(f"\n  正确拒答 {refused}/{len(refuse_items)} = {refused/len(refuse_items):.1%}")
     print(f"  其中靠判断层拦下 {saved_by_judge} 条（纯阈值拦不住的）\n")
