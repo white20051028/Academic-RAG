@@ -496,14 +496,18 @@ if question:
     cols[1].metric("召回条数", len(results))
     cols[2].metric("来源文件", len({r["meta"]["source"] for r in results}))
 
-    for i, r in enumerate(results, 1):
-        meta, doc = r["meta"], r["doc"]
-        title = f"[{i}] {meta['source'].replace('.txt', '')}"
-        # **全部默认折叠。**
-        # 原来前两条自动展开，手机上十条资料会占满整屏，把答案挤到看不见的地方。
-        # 资料是给"想核对的人"看的，不是给所有人看的——默认收起，要看自己点。
-        with st.expander(title, expanded=False):
+    # 十条资料收进一个大集合里，叫「相关材料」。
+    #
+    # 为什么不再一条一个折叠：手机上十条各占一行折叠头，光标题就占满一屏，
+    # 把下面的答案挤没了。收成一个集合，用户想看材料时一次点开，
+    # 不想看时整块只占一行。
+    with st.expander(f"📎 相关材料（{len(results)} 条，点开查看）", expanded=False):
+        for i, r in enumerate(results, 1):
+            meta, doc = r["meta"], r["doc"]
+            st.markdown(f"**[{i}]** {meta['source'].replace('.txt', '')}")
             st.text(doc)
+            if i < len(results):
+                st.divider()
 
     st.subheader("② 回答")
 
@@ -633,7 +637,7 @@ if question:
     # 原来只是一行灰字，真实用户根本没注意到——结果就是一条反馈都收不到。
     # 「这对我真的很重要」不是客气话：这个项目现在最缺的就是真实使用记录。
     st.markdown("### 这个答案帮到你了吗？")
-    st.caption("**你的反馈对我真的很重要**——我在靠它判断哪里该改。")
+    st.caption("**你的反馈对我真的很重要。**")
     c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("👍 有用", key="fb_good", use_container_width=True):
         log_feedback(question, best, "good", kind="答得挺好")
