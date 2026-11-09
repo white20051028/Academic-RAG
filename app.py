@@ -492,28 +492,26 @@ def stream_direct(prompt: str):
 
 # ---------------- 界面 ----------------
 
-st.set_page_config(page_title="教务问答", page_icon="📚", layout="wide")
+st.set_page_config(page_title="教务问答", page_icon="📚", layout="centered")
 st.title("📚 教务问答")
-st.caption("基于教务处公开文件的检索问答 · 回答会标注出自哪一条资料")
+st.caption("查西科大教务规定 · 每个答案都标出处")
 
 gw_ok = gateway_available()
 
+# 侧栏只给「用户真的会动」的东西。
+#
+# 原来侧栏一屏塞了：召回条数滑块、相似度说明、Key、P1 网关在线/离线、
+# 一段 uvicorn 启动命令、索引统计。那是开发者控制台，不是给同学用的产品。
+# 现在：Key 放上面（因为要鼓励用自己的），其余全收进「高级设置」。
 with st.sidebar:
-    st.subheader("参数")
-    k = st.slider("召回条数", 1, 10, 5)
-    st.caption(
-        "拒答不再看相似度阈值——由判断层读资料内容后决定。"
-        "相似度仍在「检索结果」里显示，用来判断检索质量。"
-    )
-
-    st.divider()
-    st.subheader("🔑 用你自己的 Key")
+    st.subheader("🔑 用自己的 Key")
+    st.caption("不填也能用。填了你问多少都不会消耗站长的额度。")
     user_key = st.text_input(
         "硅基流动 API Key",
         type="password",
         placeholder="sk-...",
-        help="填你自己的 key，问答就不消耗站长的额度。不填则用服务器上配置的那个。"
-             "免费申请：https://cloud.siliconflow.cn/",
+        label_visibility="collapsed",
+        help="免费申请：https://cloud.siliconflow.cn/",
     )
     if user_key and user_key != st.session_state.get("_key_applied"):
         st.session_state["user_key"] = user_key.strip()
@@ -524,19 +522,18 @@ with st.sidebar:
     if st.session_state.get("user_key"):
         st.success("正在用你自己的 Key ✅")
     else:
-        st.caption("当前用的是站点配置的 Key。")
+        st.caption("当前用站点配置的 Key。")
 
-    st.subheader("生成后端")
-    if gw_ok:
-        st.success("P1 网关：在线 ✅")
-        backend = st.radio("用哪个", ["P1 网关（降级/限流/计量）", "直接调模型"], index=0)
-    else:
-        st.warning("P1 网关：离线")
-        st.caption("启动方式（在 P1 项目目录）：\n```\npython -m uvicorn fastapi_bot:app --port 6066\n```")
-        backend = "直接调模型"
-
-    st.divider()
-    st.caption("索引：{} 个片段 · 模型：{}".format(get_retriever().size, EMBED_MODEL))
+    # 先给默认值：expander 折叠时里面的代码也会执行，但变量必须先存在才安全
+    k = 5
+    backend = "直接调模型"
+    with st.expander("⚙️ 高级设置"):
+        k = st.slider("检索条数", 1, 10, 5, help="每条问题从资料库里捞几条。默认 5 条。")
+        if gw_ok:
+            backend = st.radio("生成后端", ["P1 网关", "直接调模型"], index=0)
+        else:
+            st.caption("当前直连模型服务。")
+        st.caption(f"索引 {get_retriever().size} 个片段 · 模型 {EMBED_MODEL}")
 
 question = st.text_input("你的问题", placeholder="例如：转专业需要什么条件？")
 
