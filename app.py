@@ -537,11 +537,50 @@ with st.sidebar:
 
 question = st.text_input("你的问题", placeholder="例如：转专业需要什么条件？")
 
+def show_feedback_block(question: str, best_sim: float = 0.0, context: str = "answer"):
+    """反馈区。**所有出口都要挂上，包括拒答和闲聊。**
+
+    为什么：
+      用户反馈「拒答和你好之后没有反馈入口」——而这两种恰恰最需要反馈。
+      拒答了用户想说「这个其实有答案」，闲聊了也想说句「这功能没用」。
+      只在答完之后给反馈，等于只听见「答得好的时候」的声音。
+    """
+    st.divider()
+    st.markdown("### 这个答案帮到你了？")
+    st.caption("**你的反馈对我真的很重要。**")
+
+    c1, c2, _ = st.columns([1, 1, 3])
+    if c1.button("👍 有用", key=f"fb_good_{context}", use_container_width=True):
+        log_feedback(question, best_sim, "good", kind="答得挺好")
+        st.success("谢谢！已记录。")
+    if c2.button("👎 不对 / 没回答", key=f"fb_bad_{context}", use_container_width=True):
+        st.session_state["show_feedback"] = True
+
+    if st.session_state.get("show_feedback"):
+        with st.form(f"detail_{context}", clear_on_submit=False):
+            st.caption(f"你问的是：**{question}**（已自动带上，不用重打）")
+            note = st.text_area(
+                "哪里不对 / 正确答案是什么",
+                placeholder="例如：它说资料里没有，但《2026 转专业通知》写着绩点不低于 3.00",
+                height=90,
+            )
+            kind = st.radio(
+                "这条属于",
+                ["答错了", "答得不完整", "该答的没答", "它不该拒答", "其他"],
+                horizontal=True,
+            )
+            if st.form_submit_button("提交反馈", type="primary"):
+                log_feedback(question, best_sim, "bad", note=note, kind=kind)
+                st.session_state["show_feedback"] = False
+                st.success("收到，谢谢！站长会看。")
+
+
 if question:
     # 闲聊在检索之前拦住。这类问题检索出来的是垃圾，走拒答流程会回一段
     # "教务处电话"，比不回答更糟。规则判断，不调模型，零延迟。
     if judge.is_smalltalk(question):
         st.info(judge.SMALLTALK_REPLY)
+        show_feedback_block(question, context="chat")
         st.stop()
 
     # 完全无关的问题（动漫、吃什么、天气）也在检索之前拦住。
@@ -561,6 +600,7 @@ if question:
                 "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。"
             )
         st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
+        show_feedback_block(question, context="offtopic")
         st.stop()
 
     # 记对话历史。**只记用户说了什么**，不记答案——
@@ -706,6 +746,10 @@ if question:
             )
             can_answer = False
 
+    if not can_answer:
+        # 拒答之后也要给反馈入口——这类"它该答却没答"的情况，恰恰是最该被记下来的
+        show_feedback_block(question, best, context="refuse")
+
     if can_answer:
         # 引用区先显示：检索完就有，不用等生成
         st.markdown("**📎 参考资料**（答案里的 `[1][2]` 对应这里）")
@@ -752,40 +796,8 @@ if question:
                 st.error(f"生成失败：{type(e).__name__}: {str(e)[:200]}")
                 st.info("如果选了 P1 网关，确认它正在 127.0.0.1:6066 运行。")
 
-    # ---------------- 反馈 ----------------
-    # 为什么放在页面内展开，而不是跳到「反馈」页面：
-    # 多页面切换会清空问答页的状态（问题、答案、检索结果全没）。
-    # 用户为了反馈要重新输入、重新等待、还要担心刷新丢失——成本翻倍，直接劝退。
-    # 所以反馈必须**不离开当前页面**，并且自动带上他问的问题。
-    st.divider()
-    # 反馈做得显眼一点。
-    # 原来只是一行灰字，真实用户根本没注意到——结果就是一条反馈都收不到。
-    # 「这对我真的很重要」不是客气话：这个项目现在最缺的就是真实使用记录。
-    st.markdown("### 这个答案帮到你了吗？")
-    st.caption("**你的反馈对我真的很重要。**")
-    c1, c2, _ = st.columns([1, 1, 3])
-    if c1.button("👍 有用", key="fb_good", use_container_width=True):
-        log_feedback(question, best, "good", kind="答得挺好")
-        st.success("谢谢！已记录。")
-    if c2.button("👎 不对 / 没回答", key="fb_bad", use_container_width=True):
-        st.session_state["show_feedback"] = True
-
-    if st.session_state.get("show_feedback"):
-        with st.form("detail_feedback", clear_on_submit=False):
-            st.caption(f"你问的是：**{question}**（已自动带上，不用重打）")
-            note = st.text_area(
-                "哪里不对 / 正确答案是什么",
-                placeholder="例如：它说资料里没有，但《2026 转专业通知》写着绩点不低于 3.00",
-                height=90,
-            )
-            kind = st.radio(
-                "这条属于", ["答错了", "答得不完整", "该答的没答", "其他"],
-                horizontal=True,
-            )
-            if st.form_submit_button("提交反馈", type="primary"):
-                log_feedback(question, best, "bad", note=note, kind=kind)
-                st.session_state["show_feedback"] = False
-                st.success("收到，谢谢！站长会看。")
+        # 答完之后也给反馈——和拒答、闲聊共用同一块。
+        show_feedback_block(question, best, context="answer")
 
 st.divider()
 st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")
