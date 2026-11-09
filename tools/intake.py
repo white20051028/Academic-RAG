@@ -156,15 +156,17 @@ def needs_context(question: str, has_history: bool) -> bool:
     if any(w in q for w in QUESTION_WORDS):
         return False
 
-    # 指代词开头 → 明显在接上一轮
-    if any(q.startswith(w) for w in _REFER):
-        return True
-
-    # 没有问句、又带数字 → 像在补充数据（「学分180 绩点2.8」）
-    if re.search(r"\d", q):
-        return True
-
-    return False
+    # 剩下的情况：没问号、没疑问词 —— 当作在补充上一轮。
+    #
+    # **为什么不再要求「带数字」**：
+    # 真实翻车：用户回答系统列出的条件清单时发的是
+    #     「大三，计科，剩下的问题全都是无（否）」
+    # 这句话里有汉字数字「三」、有「无」「否」，就是没有阿拉伯数字。
+    # 按"必须带数字"判断会漏掉它，于是拿这句话单独去检索 → 查不到 → 拒答。
+    #
+    # 反过来，「食堂几点开门」有疑问词「几点」、「180学分够吗」有「吗」，
+    # 都会被上面的规则拦住。所以这条兜底是安全的。
+    return True
 
 
 def search_queries(question: str, intent: str | None, slots: dict,

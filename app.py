@@ -542,9 +542,18 @@ if question:
     if best >= judge.FAST_PATH:
         can_answer = True
     else:
+        # 判断层要看**拼接后的问题**。
+        #
+        # 用户回答追问时说的是「大三，计科，剩下的问题全都是无」——
+        # 把它原样喂给判断层，模型不知道在判断什么，只能答「资料不够」。
+        # 拼上上一轮的「转专业条件」就清楚了。
+        judge_q = question
+        _hist = st.session_state.get("history", [])
+        if _hist and intake.needs_context(question, True):
+            judge_q = f"{_hist[-1].get('user', '')} {question}"
         with st.spinner("确认资料是否够用…"):
             ok = judge.check_answerable(
-                question, build_context(results), get_embed_client(), CHAT_MODEL
+                judge_q, build_context(results), get_embed_client(), CHAT_MODEL
             )
         if ok:
             can_answer = True
