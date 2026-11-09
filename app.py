@@ -198,21 +198,16 @@ def get_retriever():
 
 
 def retrieve(query: str, k: int, rewrite: bool = True):
-    """检索。复合问题会拆成几个子查询，分别检索后合并。
-
-    vec_mode="orig" 是量出来的，不是拍的：向量路也用改写后，口语集
-    Recall@5 从 83% 掉到 79%。改写把原句的语序和限定词抹平了，
-    而向量路恰恰靠这些区分"保研"和"推免材料归档"。
-
-    **为什么合并要"轮流取"而不是按分数排序**：
-    「辅修能抵学分吗，最多抵多少」拆成两个子查询，第一个子查询的 5 条
-    通常分数都比第二个高。如果直接按 RRF 排序取 top-5，第二个子查询的
-    结果会被挤光——等于拆了也没用。轮流取保证每个子问题都有代表。
-    """
     """检索。策略全在 tools/search.py 里，这里只负责把它接进 Streamlit。
 
     复合问题拆成几个子查询、带个人信息的问题用意图重新构造查询——
     这些都是 search.py 的事，因为评测脚本也要用同一套逻辑。
+
+    **注意：这个函数里只能有一个 docstring。**
+    2026-11-09 出过一次事故：编辑时把新 docstring 追加在旧 docstring 后面，
+    函数体里出现了两个字符串字面量。第二个不再是 docstring，而是裸表达式——
+    Streamlit 的 magic 功能会把它自动 st.write() 到页面上，
+    于是这段开发注释以代码块的形式出现在了页面最显眼的位置。
     """
     return search_mod.search(
         get_retriever(), query, k, rewrite=rewrite,
@@ -504,7 +499,10 @@ if question:
     for i, r in enumerate(results, 1):
         meta, doc = r["meta"], r["doc"]
         title = f"[{i}] {meta['source'].replace('.txt', '')}"
-        with st.expander(title, expanded=(i <= 2)):
+        # **全部默认折叠。**
+        # 原来前两条自动展开，手机上十条资料会占满整屏，把答案挤到看不见的地方。
+        # 资料是给"想核对的人"看的，不是给所有人看的——默认收起，要看自己点。
+        with st.expander(title, expanded=False):
             st.text(doc)
 
     st.subheader("② 回答")
@@ -549,8 +547,18 @@ if question:
         # 拼上上一轮的「转专业条件」就清楚了。
         judge_q = question
         _hist = st.session_state.get("history", [])
-        if search_mod.is_followup(question, _hist, get_embed_client(), CHAT_MODEL):
-            judge_q = f"{_hist[-1].get('user', '')} {question}"
+        # **不要在这里重复判断一次「是否承接」。**
+        # search_mod.search() 内部已经判过一次了（它要决定拼不拼上下文）。
+        # 同一个判断调两次 LLM = 白多等 2 秒。这里按 (上一轮, 这一轮) 缓存。
+        if _hist:
+            _ck = (_hist[-1].get("user", ""), question)
+            if st.session_state.get("_fu_key") != _ck:
+                st.session_state["_fu_key"] = _ck
+                st.session_state["_fu_val"] = search_mod.is_followup(
+                    question, _hist, get_embed_client(), CHAT_MODEL
+                )
+            if st.session_state["_fu_val"]:
+                judge_q = f"{_hist[-1].get('user', '')} {question}"
         with st.spinner("确认资料是否够用…"):
             ok = judge.check_answerable(
                 judge_q, build_context(results), get_embed_client(), CHAT_MODEL
@@ -621,12 +629,16 @@ if question:
     # 用户为了反馈要重新输入、重新等待、还要担心刷新丢失——成本翻倍，直接劝退。
     # 所以反馈必须**不离开当前页面**，并且自动带上他问的问题。
     st.divider()
-    st.markdown("**这个答案对你有用吗？**")
+    # 反馈做得显眼一点。
+    # 原来只是一行灰字，真实用户根本没注意到——结果就是一条反馈都收不到。
+    # 「这对我真的很重要」不是客气话：这个项目现在最缺的就是真实使用记录。
+    st.markdown("### 这个答案帮到你了吗？")
+    st.caption("**你的反馈对我真的很重要**——我在靠它判断哪里该改。")
     c1, c2, _ = st.columns([1, 1, 3])
-    if c1.button("👍 有用", key="fb_good"):
+    if c1.button("👍 有用", key="fb_good", use_container_width=True):
         log_feedback(question, best, "good", kind="答得挺好")
         st.success("谢谢！已记录。")
-    if c2.button("👎 不对 / 没回答", key="fb_bad"):
+    if c2.button("👎 不对 / 没回答", key="fb_bad", use_container_width=True):
         st.session_state["show_feedback"] = True
 
     if st.session_state.get("show_feedback"):
