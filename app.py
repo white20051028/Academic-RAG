@@ -549,7 +549,7 @@ if question:
         # 拼上上一轮的「转专业条件」就清楚了。
         judge_q = question
         _hist = st.session_state.get("history", [])
-        if _hist and intake.needs_context(question, True):
+        if search_mod.is_followup(question, _hist, get_embed_client(), CHAT_MODEL):
             judge_q = f"{_hist[-1].get('user', '')} {question}"
         with st.spinner("确认资料是否够用…"):
             ok = judge.check_answerable(

@@ -125,21 +125,20 @@ def ask_text(intent: str, missing: list[str]) -> str:
 
 
 def needs_context(question: str, has_history: bool) -> bool:
-    """这句话单独拿去检索会不会失败？
+    """**规则版**判断：这句话是不是在承接上一轮。
 
-    真实的翻车案例（用户实测的第三轮）：
+    只处理「明确」的情况，剩下的返回 None 交给模型判断（见 search.py）。
+    规则能确定的两头：
 
-        系统：请提供你的学分、绩点
-        用户：学分180  毕业设计成绩 优秀   平均学分绩点 2.8
-        系统：这个问题的答案不在我收录的教务文件里   ← 因为它拿这串数字去检索
+        明确承接  「那辅修呢」「这个要多久」     → True
+        明确独立  「转专业要什么条件？」          → False
+        不确定    「大三，计科，剩下的都是无」    → None
 
-    这句话里没有「毕业要求」四个字，所以检索必然查不到。
-    它是在**回答上一轮的追问**，必须拼上上一轮的问题一起查。
-
-    判据：
-      - 没有历史 → 不拼（第一轮没什么可拼的）
-      - 短句且没有问号 → 像在补充信息，拼
-      - 开头有「那/这个/它」→ 在接上一轮，拼
+    **为什么不再试图用规则覆盖全部**：
+    这个函数已经被真实用户打脸三次了——
+      「学分180 绩点2.8」     规则要求带数字 → 漏了汉字数字
+      「大三，计科，都是无」   规则要求 \d     → 漏了「三」
+    用户怎么说话是不可穷举的，规则只该处理最明确的两头。
     """
     if not has_history:
         return False
@@ -148,25 +147,56 @@ def needs_context(question: str, has_history: bool) -> bool:
     if not q:
         return False
 
-    # 有问号、或者有疑问词 → 它是一个完整的独立问题，不拼
-    if "？" in q or "?" in q:
-        return False
-    if q.rstrip("。！! ").endswith("吗"):
-        return False
-    if any(w in q for w in QUESTION_WORDS):
+    # 明确承接：指代词开头
+    if any(q.startswith(w) for w in _REFER):
+        return True
+
+    # 明确独立：有问号 + 有疑问词 + 不是指代
+    has_qmark = "？" in q or "?" in q
+    has_qword = q.rstrip("。！! ").endswith("吗") or any(w in q for w in QUESTION_WORDS)
+    if has_qmark and has_qword:
         return False
 
-    # 剩下的情况：没问号、没疑问词 —— 当作在补充上一轮。
-    #
-    # **为什么不再要求「带数字」**：
-    # 真实翻车：用户回答系统列出的条件清单时发的是
-    #     「大三，计科，剩下的问题全都是无（否）」
-    # 这句话里有汉字数字「三」、有「无」「否」，就是没有阿拉伯数字。
-    # 按"必须带数字"判断会漏掉它，于是拿这句话单独去检索 → 查不到 → 拒答。
-    #
-    # 反过来，「食堂几点开门」有疑问词「几点」、「180学分够吗」有「吗」，
-    # 都会被上面的规则拦住。所以这条兜底是安全的。
-    return True
+    # 其余交给模型
+    return None
+
+
+CONTEXT_PROMPT = """判断这一轮用户的话是不是在接上一轮。
+
+上一轮用户说的是：{prev}
+这一轮用户说的是：{cur}
+
+如果这一轮是在回答上一轮的问题、补充信息、或者继续聊同一个话题 → 输出 YES
+如果这一轮是一个全新的话题、和上一轮无关 → 输出 NO
+
+只输出 YES 或 NO，不要解释。
+
+输出："""
+
+
+def llm_is_followup(prev: str, cur: str, client, model: str) -> bool:
+    """让模型判断「这句话是不是在接上一轮」。
+
+    真实场景里用户怎么说话是猜不完的：
+        「大三，计科，剩下的问题全都是无（否）」
+    这句话没有问号、没有疑问词、没有阿拉伯数字——规则怎么写都会漏。
+    让模型看一眼上下文，比堆正则可靠。
+
+    失败时返回 False（当成独立问题）——因为判断错了最多是少拼一条，
+    而误拼会让无关资料混进检索。
+    """
+    try:
+        r = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user",
+                       "content": CONTEXT_PROMPT.format(prev=prev, cur=cur)}],
+            max_tokens=8,
+            temperature=0,
+        )
+        ans = (r.choices[0].message.content or "").strip().upper()
+        return ans.startswith("YES") or ans.startswith("是")
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def search_queries(question: str, intent: str | None, slots: dict,

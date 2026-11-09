@@ -28,6 +28,33 @@ import planner
 from concurrent.futures import ThreadPoolExecutor
 
 
+def is_followup(query: str, history: list | None, client=None,
+                model: str = "Qwen/Qwen2.5-7B-Instruct") -> bool:
+    """这句话是不是在承接上一轮？
+
+    三档（见 intake.needs_context）：
+      规则说 True  → 直接信（指代词开头）
+      规则说 False → 直接信（完整问句）
+      规则说 None  → 问模型
+
+    **为什么必须让模型兜中间那档**：
+    这个判断已经被真实用户打脸三次——「学分180 绩点2.8」漏了汉字数字、
+    「大三，计科，都是无」漏了「三」。用户怎么说话是穷举不完的。
+    """
+    if not history:
+        return False
+    prev = (history[-1] or {}).get("user", "")
+    if not prev:
+        return False
+
+    flag = intake.needs_context(query, True)
+    if flag is None:
+        if client is None:
+            return True          # 没法问模型时，偏向「是承接」——漏拼的代价更高
+        return intake.llm_is_followup(prev, query, client, model)
+    return flag
+
+
 def build_queries(query: str, client=None, model: str = "Qwen/Qwen2.5-7B-Instruct",
                   history: list | None = None) -> list[str]:
     """决定这次要查几遍、分别查什么。
@@ -44,15 +71,14 @@ def build_queries(query: str, client=None, model: str = "Qwen/Qwen2.5-7B-Instruc
     所以当 `intake.needs_context()` 说是「在补充上一轮」时，
     把上一轮用户的话拼进来一起检索。
     """
-    # 拼上一轮：只在「这句话看起来是在回答追问」时做
-    if history and intake.needs_context(query, True):
+    # 拼上一轮
+    if history:
         prev = history[-1].get("user", "")
-        if prev:
-            # **两条都查，不是只查拼接后那一条。**
+        if prev and is_followup(query, history, client, model):
+            # 两条都查，不是只查拼接后那一条。
             #
             # 实测：只查「计科毕业要求 学分180 绩点2.8」时，检索仍被那串数字主导，
             # top-1 还是「转专业通知」——和 v13 那个「个人信息污染检索」同一个病。
-            #
             # 「计科毕业要求」单独查是干净的，必须给它一个独立名额。
             return [prev, f"{prev} {query}"]
 
