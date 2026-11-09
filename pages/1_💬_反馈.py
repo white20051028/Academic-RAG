@@ -1,21 +1,16 @@
-"""反馈：用户提交 + 看最近大家提了什么。
+"""看看大家提了什么。
 
-**为什么要这个页面**
+**这里不能提交反馈，只能看。**
 
-原来的 👍/👎 只记了「好/不好」，站长看不到**哪里不好**。
-这个页面让人能写一句：「转专业那条，绩点要求是 3.0，它答成 2.8 了。」
+原因：Streamlit 多页面切换会清空问答页的状态（问题、答案、检索结果全没）。
+如果让用户在这个页面填反馈，他得切回来重新问一遍才能对照——成本翻倍，直接劝退。
 
-**为什么反馈要落盘而不是发微信**
+所以提交入口在**问答页**：答案下面点「👎 不对」，就地展开，问题自动带上。
 
-1. 微信里聊完就散了，没法统计
-2. 攒够 20 条就是「有真实用户反馈」的证据，简历能写
-3. 反馈里的问题可以直接变成下一批评测题
-
-数据存在 data/feedback.jsonl，不进 git（可能含个人信息）。
+这个页面只负责让你知道「别人也在用、别人提了什么」。
 """
 
 import json
-from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -23,67 +18,38 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent.parent
 FEEDBACK = ROOT / "data" / "feedback.jsonl"
 
-st.set_page_config(page_title="反馈", page_icon="💬")
-st.title("💬 反馈")
-st.caption("哪里答错了、哪里没说清楚，都可以写在这里。站长会看。")
+st.set_page_config(page_title="大家的反馈", page_icon="💬")
+st.title("💬 大家的反馈")
 
-# ---------------- 表单 ----------------
-
-with st.form("feedback", clear_on_submit=True):
-    question = st.text_input(
-        "你问的问题（必填）",
-        placeholder="例如：转专业要多少绩点",
-    )
-    note = st.text_area(
-        "哪里不对 / 正确答案是什么（选填，但写了最有帮助）",
-        placeholder="例如：它说资料里没有，但通知里写着绩点不低于 3.00",
-        height=100,
-    )
-    kind = st.radio(
-        "这条反馈是",
-        ["答错了", "答得不完整", "答得挺好", "其他"],
-        horizontal=True,
-    )
-    submitted = st.form_submit_button("提交", type="primary")
-
-if submitted:
-    if not question.strip():
-        st.error("至少写一下你问的是什么")
-    else:
-        record = {
-            "time": datetime.now().isoformat(timespec="seconds"),
-            "question": question.strip(),
-            "note": note.strip(),
-            "verdict": {"答得挺好": "good"}.get(kind, "bad"),
-            "kind": kind,
-            "from": "feedback_page",
-        }
-        FEEDBACK.parent.mkdir(parents=True, exist_ok=True)
-        with FEEDBACK.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        st.success("收到，谢谢！站长会看。")
-
-# ---------------- 最近反馈 ----------------
-
-st.divider()
-st.subheader("最近大家提的")
+st.info(
+    "**想提反馈？** 回到「问答」页，在答案下面点「👎 不对 / 没回答」，"
+    "就在原地展开填写，你问的问题会自动带上，不用重打。"
+)
 
 if not FEEDBACK.exists():
-    st.info("还没有反馈。你可以是第一个。")
+    st.caption("还没有反馈。")
+    st.stop()
+
+rows = [
+    json.loads(line)
+    for line in FEEDBACK.read_text(encoding="utf-8").splitlines()
+    if line.strip()
+]
+
+good = sum(1 for r in rows if r.get("verdict") == "good")
+c1, c2 = st.columns(2)
+c1.metric("累计反馈", len(rows))
+c2.metric("好评", good)
+
+st.divider()
+
+# 只展示有文字的（👍/👎 没内容，展示出来没意义）
+text_rows = [r for r in rows if r.get("note")]
+if not text_rows:
+    st.caption("还没有写文字的反馈。")
 else:
-    rows = [
-        json.loads(line)
-        for line in FEEDBACK.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    # 只展示来自反馈页的（👍/👎 那类没有文字，展示出来没意义）
-    shown = [r for r in rows if r.get("from") == "feedback_page"][-10:]
-    if not shown:
-        st.info("还没有文字反馈。")
-    else:
-        for r in reversed(shown):
-            with st.container(border=True):
-                st.markdown(f"**{r['question']}**")
-                if r.get("note"):
-                    st.markdown(f"　{r['note']}")
-                st.caption(f"{r['time']} · {r.get('kind', '')}")
+    for r in reversed(text_rows[-10:]):
+        with st.container(border=True):
+            st.markdown(f"**{r.get('question', '（没写问题）')}**")
+            st.markdown(f"　{r['note']}")
+            st.caption(f"{r.get('time', '')} · {r.get('kind', '')}")

@@ -223,7 +223,8 @@ def retrieve(query: str, k: int, rewrite: bool = True):
 FEEDBACK_FILE = ROOT / "data" / "feedback.jsonl"
 
 
-def log_feedback(question: str, best_sim: float, verdict: str) -> None:
+def log_feedback(question: str, best_sim: float, verdict: str, note: str = "",
+                 kind: str = "") -> None:
     """记一条用户反馈，追加到 data/feedback.jsonl。
 
     为什么落盘而不是只打日志：
@@ -239,6 +240,9 @@ def log_feedback(question: str, best_sim: float, verdict: str) -> None:
         "question": question,
         "best_sim": round(best_sim, 4),
         "verdict": verdict,
+        "note": note.strip(),
+        "kind": kind,
+        "from": "qa_page",
     }
     FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
     with FEEDBACK_FILE.open("a", encoding="utf-8") as f:
@@ -590,17 +594,35 @@ if question:
                 st.info("如果选了 P1 网关，确认它正在 127.0.0.1:6066 运行。")
 
     # ---------------- 反馈 ----------------
-    # 为什么要有这个按钮：项目现在最缺的不是功能，是「真实用户提的问题」。
-    # 每一条反馈都会进 data/feedback.jsonl，成为下一批评测题的来源。
+    # 为什么放在页面内展开，而不是跳到「反馈」页面：
+    # 多页面切换会清空问答页的状态（问题、答案、检索结果全没）。
+    # 用户为了反馈要重新输入、重新等待、还要担心刷新丢失——成本翻倍，直接劝退。
+    # 所以反馈必须**不离开当前页面**，并且自动带上他问的问题。
     st.divider()
     st.markdown("**这个答案对你有用吗？**")
-    c1, c2, c3 = st.columns([1, 1, 3])
+    c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("👍 有用", key="fb_good"):
-        log_feedback(question, best, "good")
+        log_feedback(question, best, "good", kind="答得挺好")
         st.success("谢谢！已记录。")
-    if c2.button("👎 不对/没回答", key="fb_bad"):
-        log_feedback(question, best, "bad")
-        st.success("收到，会用来改进。方便的话把正确答案发给站长。")
+    if c2.button("👎 不对 / 没回答", key="fb_bad"):
+        st.session_state["show_feedback"] = True
+
+    if st.session_state.get("show_feedback"):
+        with st.form("detail_feedback", clear_on_submit=False):
+            st.caption(f"你问的是：**{question}**（已自动带上，不用重打）")
+            note = st.text_area(
+                "哪里不对 / 正确答案是什么",
+                placeholder="例如：它说资料里没有，但《2026 转专业通知》写着绩点不低于 3.00",
+                height=90,
+            )
+            kind = st.radio(
+                "这条属于", ["答错了", "答得不完整", "该答的没答", "其他"],
+                horizontal=True,
+            )
+            if st.form_submit_button("提交反馈", type="primary"):
+                log_feedback(question, best, "bad", note=note, kind=kind)
+                st.session_state["show_feedback"] = False
+                st.success("收到，谢谢！站长会看。")
 
 st.divider()
 st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")
