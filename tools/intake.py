@@ -124,7 +124,48 @@ def ask_text(intent: str, missing: list[str]) -> str:
     return f"\n\n---\n\n**想让我帮你判断？** 告诉我你的 {names} 就行。"
 
 
-# ---------------- 检索查询构造 ----------------
+def needs_context(question: str, has_history: bool) -> bool:
+    """这句话单独拿去检索会不会失败？
+
+    真实的翻车案例（用户实测的第三轮）：
+
+        系统：请提供你的学分、绩点
+        用户：学分180  毕业设计成绩 优秀   平均学分绩点 2.8
+        系统：这个问题的答案不在我收录的教务文件里   ← 因为它拿这串数字去检索
+
+    这句话里没有「毕业要求」四个字，所以检索必然查不到。
+    它是在**回答上一轮的追问**，必须拼上上一轮的问题一起查。
+
+    判据：
+      - 没有历史 → 不拼（第一轮没什么可拼的）
+      - 短句且没有问号 → 像在补充信息，拼
+      - 开头有「那/这个/它」→ 在接上一轮，拼
+    """
+    if not has_history:
+        return False
+
+    q = question.strip()
+    if not q:
+        return False
+
+    # 有问号、或者有疑问词 → 它是一个完整的独立问题，不拼
+    if "？" in q or "?" in q:
+        return False
+    if q.rstrip("。！! ").endswith("吗"):
+        return False
+    if any(w in q for w in QUESTION_WORDS):
+        return False
+
+    # 指代词开头 → 明显在接上一轮
+    if any(q.startswith(w) for w in _REFER):
+        return True
+
+    # 没有问句、又带数字 → 像在补充数据（「学分180 绩点2.8」）
+    if re.search(r"\d", q):
+        return True
+
+    return False
+
 
 def search_queries(question: str, intent: str | None, slots: dict,
                    max_q: int = 4) -> list[str]:
@@ -169,3 +210,18 @@ def search_queries(question: str, intent: str | None, slots: dict,
     # 去重保序
     return list(dict.fromkeys(qs))[:max_q]
 
+
+# ---------------- 判断要不要拼接上下文 ----------------
+
+# 指代词开头，说明在接上一轮
+_REFER = ("那", "这个", "那个", "它", "上面", "刚才", "还有", "另外")
+
+# 疑问词。分句里出现任意一个，就算这个分句在问东西。
+# 复合问题的判断在 planner.is_compound 里，这里用来判断
+# 「当前这句是独立问题 / 还是在补充上一轮的答案」。
+QUESTION_WORDS = (
+    "多少", "几个", "几门", "几学期", "几点", "多久", "多长", "几次",
+    "怎么", "如何", "怎样",
+    "能不能", "可不可以", "是否", "有没有", "要不要", "会不会", "算不算",
+    "哪个", "哪些", "哪种", "什么", "区别", "差别", "不同", "要求", "条件",
+)

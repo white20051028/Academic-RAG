@@ -217,6 +217,7 @@ def retrieve(query: str, k: int, rewrite: bool = True):
     return search_mod.search(
         get_retriever(), query, k, rewrite=rewrite,
         client=get_embed_client(), model=CHAT_MODEL,
+        history=st.session_state.get("history", []),
     )
 
 
@@ -473,6 +474,18 @@ if question:
     if judge.is_smalltalk(question):
         st.info(judge.SMALLTALK_REPLY)
         st.stop()
+
+    # 记对话历史。**只记用户说了什么**，不记答案——
+    # 检索拼接只需要知道「上一轮问的是什么」，答案有 800 字，塞进去只会污染语义。
+    #
+    # 为什么要判 question != _last_q：Streamlit 每次交互都会重跑整个脚本，
+    # 不判的话同一个问题会被重复记很多次。
+    if "history" not in st.session_state:
+        st.session_state["history"] = []
+    if question != st.session_state.get("_last_q"):
+        st.session_state["_last_q"] = question
+        st.session_state["history"].append({"user": question})
+        st.session_state["history"] = st.session_state["history"][-5:]   # 只留最近 5 轮
 
     # 看用户提供了多少信息 —— 决定后面用哪种回答方式
     intent = intake.detect_intent(question)

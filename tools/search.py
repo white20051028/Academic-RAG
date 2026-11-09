@@ -28,11 +28,34 @@ import planner
 from concurrent.futures import ThreadPoolExecutor
 
 
-def build_queries(query: str, client=None, model: str = "Qwen/Qwen2.5-7B-Instruct") -> list[str]:
+def build_queries(query: str, client=None, model: str = "Qwen/Qwen2.5-7B-Instruct",
+                  history: list | None = None) -> list[str]:
     """决定这次要查几遍、分别查什么。
 
     优先级：意图 > 复合问题 > 原话。
+
+    **history 的作用**：用户回答追问时，那句话本身往往没有主题。
+    实测翻车：
+
+        系统：请提供你的学分、绩点
+        用户：学分180  毕业设计成绩 优秀   平均学分绩点 2.8
+        → 拿这串数字去检索，必然查不到「毕业要求」那份文件
+
+    所以当 `intake.needs_context()` 说是「在补充上一轮」时，
+    把上一轮用户的话拼进来一起检索。
     """
+    # 拼上一轮：只在「这句话看起来是在回答追问」时做
+    if history and intake.needs_context(query, True):
+        prev = history[-1].get("user", "")
+        if prev:
+            # **两条都查，不是只查拼接后那一条。**
+            #
+            # 实测：只查「计科毕业要求 学分180 绩点2.8」时，检索仍被那串数字主导，
+            # top-1 还是「转专业通知」——和 v13 那个「个人信息污染检索」同一个病。
+            #
+            # 「计科毕业要求」单独查是干净的，必须给它一个独立名额。
+            return [prev, f"{prev} {query}"]
+
     intent = intake.detect_intent(query)
     if intent:
         slots = intake.extract_slots(query, intent)
@@ -66,7 +89,7 @@ def merge_round_robin(buckets: list[list[dict]], width: int) -> list[dict]:
 
 
 def search(retriever, query: str, k: int, *, rewrite: bool = True, client=None,
-           model: str = "Qwen/Qwen2.5-7B-Instruct"):
+           model: str = "Qwen/Qwen2.5-7B-Instruct", history: list | None = None):
     """返回 (资料列表, 最高相似度)。这是线上和评测共用的唯一入口。
 
     k 是用户看到的条数。多查询时会自动放大到 min(2k, 10)——
@@ -81,7 +104,7 @@ def search(retriever, query: str, k: int, *, rewrite: bool = True, client=None,
     这也是「API 慢的时候多开几个」的朴素想法能成立的地方：
     它不减少总工作量，但把等待重叠起来了。
     """
-    queries = build_queries(query, client=client, model=model)
+    queries = build_queries(query, client=client, model=model, history=history)
     width = min(k * 2, 10) if len(queries) > 1 else k
 
     def one(q: str):
