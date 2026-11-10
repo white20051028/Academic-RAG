@@ -349,7 +349,7 @@ def get_retriever():
     return R.HybridRetriever(get_embed_client(), EMBED_MODEL)
 
 
-def retrieve(query: str, k: int, rewrite: bool = True):
+def retrieve(query: str, k: int, rewrite: bool = True, history: list | None = None):
     """检索。策略全在 tools/search.py 里，这里只负责把它接进 Streamlit。
 
     复合问题拆成几个子查询、带个人信息的问题用意图重新构造查询——
@@ -364,7 +364,9 @@ def retrieve(query: str, k: int, rewrite: bool = True):
     return search_mod.search(
         get_retriever(), query, k, rewrite=rewrite,
         client=get_embed_client(), model=CHAT_MODEL,
-        history=st.session_state.get("history", []),
+        # 传进来什么就用什么。调用方会传「不含当前问题」的历史——
+        # 否则 search 内部取 history[-1] 会取到当前这句自己。
+        history=history if history is not None else st.session_state.get("history", []),
     )
 
 
@@ -702,29 +704,14 @@ if prompt:
             show_feedback_block(prompt, context="chat")
             st.stop()
 
-        # ---------- 2. 完全无关 ----------
-        if refusal_kind(prompt) == "off_topic":
-            joke = fun_reply(prompt) or pick_choice(prompt)
-            if joke:
-                st.markdown(f"### {joke}")
-                st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
-                out = joke
-            else:
-                out = ("这个我真答不了 😅\n\n"
-                       "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。")
-                st.info(out)
-            st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
-            st.session_state["messages"].append({"role": "assistant", "content": out})
-            show_feedback_block(prompt, context="offtopic")
-            st.stop()
-
-        # ---------- 3. 正常流程 ----------
-        # **先判断这轮是不是在承接上一轮，再算 intent。**
+        # ---------- 2. 先判断这轮是不是在承接上一轮 ----------
         #
-        # 踩过的坑：第一轮问「转专业要什么条件」，第二轮答「大三，绩点2.8」。
-        # 拿原句算 intent 的话，它会因为「绩点」二字被识别成「学位」问题——
-        # 用户问转专业，它答能不能拿学位证。
-        # 拼上上一轮（「转专业要什么条件 大三，绩点2.8」）才是对的。
+        # **必须放在 off_topic 判断之前。**
+        # 真实翻车：用户第一轮问「转专业条件」，第二轮答「大三，计科专业」。
+        # 这句话里没有任何教务关键词，refusal_kind 判成「完全无关」直接秒拒——
+        # 承接判断根本没机会跑。而它明明是在回答上一轮的追问。
+        #
+        # 所以顺序必须是：先拼接 → 再用拼接后的问题判断「是不是无关」。
         _hist_all = st.session_state["history"]
         followup = False
         prev_q = ""
@@ -739,12 +726,33 @@ if prompt:
             followup = bool(st.session_state["_fu_val"])
 
         effective = f"{prev_q} {prompt}" if followup else prompt
+
+        # ---------- 3. 完全无关（用 effective 判断，不是原句） ----------
+        if refusal_kind(effective) == "off_topic":
+            joke = fun_reply(prompt) or pick_choice(prompt)
+            if joke:
+                st.markdown(f"### {joke}")
+                st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
+                out = joke
+            else:
+                out = ("这个我真答不了 😅\n\n"
+                       "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。")
+                st.info(out)
+            st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
+            st.session_state["messages"].append({"role": "assistant", "content": out})
+            show_feedback_block(prompt, context="offtopic")
+            st.stop()
+
+        # ---------- 4. 正常流程 ----------
+        # intent 也要基于 effective 算。
+        # 踩过的坑：第二轮「大三，绩点2.8」含「绩点」会被识别成「学位」问题，
+        # 用户问转专业，它答能不能拿学位证。
         intent = intake.detect_intent(effective)
         slots = intake.extract_slots(effective, intent) if intent else {}
         missing = intake.missing_slots(intent, slots) if intent else []
 
         with st.spinner("检索中…"):
-            results, best = retrieve(prompt, k)
+            results, best = retrieve(prompt, k, history=_hist_all[:-1])
 
         materials = [
             (r["meta"]["source"].replace(".txt", ""),
