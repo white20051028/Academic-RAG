@@ -427,7 +427,16 @@ def build_prompt(question: str, context: str, intent: str | None,
             f"1. 能不能（能/不能/需要补充其他条件）\n"
             f"2. 依据是资料里哪一条（标 [n]）\n"
             f"3. 如果不能或差一点，说明差在哪、有没有补救办法\n"
-            f"不要只把制度抄一遍，用户要的是结论。"
+            f"不要只把制度抄一遍，用户要的是结论。\n\n"
+            f"**⚠️ 必须先核对「适用范围」，这比条件本身更重要：**\n"
+            f"- 资料里如果写了「限定 / 仅限 / 只面向 / 适用于」某个年级、专业类、学制，"
+            f"必须先把它写出来\n"
+            f"- 用户如果不在这个范围内，**条件再满足也要答「不能」**，并说明是范围不符\n"
+            f"- 真实案例：学生大三、绩点 4.0 想转专业。资料写「绩点不低于3.00」，"
+            f"同时写「第一～二款限定本科一年级」。只看绩点会答「能」，"
+            f"但正确答案是「不能——绩点那条只对大一开放；大三只能走第八、九款"
+            f"（兴趣专长 / 学习困难）」\n"
+            f"- **不要只引用「条件」那一条，一定要找到「谁适用」那一条**"
         )
 
     if slots and missing:
@@ -549,12 +558,21 @@ def stream_via_gateway(prompt: str):
 
 
 def stream_direct(prompt: str):
-    """直接调模型（网关没启动时的退路）。"""
+    """直接调模型（网关没启动时的退路）。
+
+    **用 DeepSeek 而不是免费的 Qwen2.5-7B。**
+    2026-11-10 真实翻车：用户问「大三绩点4.0能转人工智能吗」，
+    7B 答「不能，因为属于毕业班」——**结论碰巧对，理由是编的**（大三不是毕业班）。
+    同一个 prompt 换 DeepSeek，回答准确到能写进法律文书。
+
+    编理由比答错更危险：用户会拿着错理由去教务处，然后被当场驳回。
+    成本约 0.004 元/次（输入 3000 + 输出 600 tokens），值得。
+    """
     from openai import OpenAI
 
-    client = OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
+    client = OpenAI(api_key=read_env(judge.JUDGE_KEY_ENV), base_url=judge.JUDGE_BASE_URL)
     stream = client.chat.completions.create(
-        model=CHAT_MODEL,
+        model=judge.JUDGE_MODEL,
         messages=[{"role": "user", "content": prompt}],
         stream=True,
         max_tokens=800,
