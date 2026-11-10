@@ -314,6 +314,20 @@ def get_embed_client():
     return OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
 
 
+@st.cache_resource
+def get_judge_client():
+    """判断层专用的 client（DeepSeek 官方）。
+
+    为什么要单独一个：判断层用 deepseek-chat（判得准），生成端用免费的
+    Qwen2.5-7B。两个服务商的 base_url 和 key 都不同，不能共用 client。
+
+    成本：每次判断约 2400 tokens，折合 0.003 元左右。生成端不花钱。
+    """
+    from openai import OpenAI
+
+    return OpenAI(api_key=read_env(judge.JUDGE_KEY_ENV), base_url=judge.JUDGE_BASE_URL)
+
+
 def gateway_available() -> bool:
     try:
         return httpx.get(f"{GATEWAY}/health", timeout=2).status_code == 200
@@ -791,7 +805,7 @@ if question:
                 judge_q = f"{_hist[-1].get('user', '')} {question}"
         with st.spinner("确认资料是否够用…"):
             ok = judge.check_answerable(
-                judge_q, build_context(results), get_embed_client(), CHAT_MODEL
+                judge_q, build_context(results), get_judge_client(), judge.JUDGE_MODEL
             )
         if ok:
             can_answer = True
