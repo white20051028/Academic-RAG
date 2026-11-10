@@ -567,31 +567,31 @@ def stream_direct(prompt: str):
 
 # ---------------- 界面 ----------------
 
+
+# ==================== 界面（对话流） ====================
+#
+# 2026-11-10：从「一次一问」改成聊天流。
+# 为什么：多轮上下文逻辑早就做好了（用户回答追问时能接上），
+# 但界面是单问单答的——用户看不到自己说过什么，也看不出系统记住了。
+# 逻辑做了但用户感知不到，等于白做。
+
 st.set_page_config(page_title="教务问答", page_icon="📚", layout="centered")
 st.title("📚 教务问答")
 st.caption("查西科大教务规定 · 每个答案都标出处")
 
 gw_ok = gateway_available()
 
-# 侧栏只给「用户真的会动」的东西。
-#
-# 原来侧栏一屏塞了：召回条数滑块、相似度说明、Key、P1 网关在线/离线、
-# 一段 uvicorn 启动命令、索引统计。那是开发者控制台，不是给同学用的产品。
-# 现在：Key 放上面（因为要鼓励用自己的），其余全收进「高级设置」。
 with st.sidebar:
     st.subheader("🔑 用自己的 Key")
     st.caption("不填也能用。填了你问多少都不会消耗站长的额度。")
     user_key = st.text_input(
-        "硅基流动 API Key",
-        type="password",
-        placeholder="sk-...",
+        "硅基流动 API Key", type="password", placeholder="sk-...",
         label_visibility="collapsed",
         help="免费申请：https://cloud.siliconflow.cn/",
     )
     if user_key and user_key != st.session_state.get("_key_applied"):
         st.session_state["user_key"] = user_key.strip()
         st.session_state["_key_applied"] = user_key
-        # 换了 key 必须清缓存，否则检索器还在用旧 client
         st.cache_resource.clear()
         st.rerun()
     if st.session_state.get("user_key"):
@@ -599,31 +599,28 @@ with st.sidebar:
     else:
         st.caption("当前用站点配置的 Key。")
 
-    # 先给默认值：expander 折叠时里面的代码也会执行，但变量必须先存在才安全
     k = 5
     backend = "直接调模型"
     with st.expander("⚙️ 高级设置"):
-        k = st.slider("检索条数", 1, 10, 5, help="每条问题从资料库里捞几条。默认 5 条。")
+        k = st.slider("检索条数", 1, 10, 5)
         if gw_ok:
             backend = st.radio("生成后端", ["P1 网关", "直接调模型"], index=0)
         else:
             st.caption("当前直连模型服务。")
         st.caption(f"索引 {get_retriever().size} 个片段 · 模型 {EMBED_MODEL}")
 
-question = st.text_input("你的问题", placeholder="例如：转专业需要什么条件？")
+    if st.button("🗑 清空对话", use_container_width=True):
+        st.session_state["messages"] = []
+        st.session_state["history"] = []
+        st.session_state["_last_q"] = None
+        st.rerun()
+
 
 def show_feedback_block(question: str, best_sim: float = 0.0, context: str = "answer"):
-    """反馈区。**所有出口都要挂上，包括拒答和闲聊。**
-
-    为什么：
-      用户反馈「拒答和你好之后没有反馈入口」——而这两种恰恰最需要反馈。
-      拒答了用户想说「这个其实有答案」，闲聊了也想说句「这功能没用」。
-      只在答完之后给反馈，等于只听见「答得好的时候」的声音。
-    """
+    """反馈区。所有出口都挂：正常答、拒答、闲聊、无关问题。"""
     st.divider()
     st.markdown("### 这个答案帮到你了？")
     st.caption("**你的反馈对我真的很重要。**")
-
     c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("👍 有用", key=f"fb_good_{context}", use_container_width=True):
         log_feedback(question, best_sim, "good", kind="答得挺好")
@@ -650,229 +647,183 @@ def show_feedback_block(question: str, best_sim: float = 0.0, context: str = "an
                 st.success("收到，谢谢！站长会看。")
 
 
-if question:
-    # 闲聊在检索之前拦住。这类问题检索出来的是垃圾，走拒答流程会回一段
-    # "教务处电话"，比不回答更糟。规则判断，不调模型，零延迟。
-    if judge.is_smalltalk(question):
-        st.info(judge.SMALLTALK_REPLY)
-        show_feedback_block(question, context="chat")
-        st.stop()
+# ---------------- 对话历史 ----------------
 
-    # 完全无关的问题（动漫、吃什么、天气）也在检索之前拦住。
-    #
-    # 为什么要提前拦：不然「吃什么」会先跑 4 个查询的检索 + 判断层，
-    # 白等 5-8 秒，最后换来一句「不在我收录的教务文件里」——既慢又扫兴。
-    # 直接回一句轻松的，秒出。
-    if refusal_kind(question) == "off_topic":
-        joke = fun_reply(question) or pick_choice(question)
-        if joke:
-            # 彩蛋命中：先给一句人话，再说清这不是我的业务范围
-            st.markdown(f"### {joke}")
-            st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
-        else:
-            st.info(
-                "这个我真答不了 😅\n\n"
-                "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。"
+if "messages" not in st.session_state:
+    st.session_state["messages"] = []      # [{"role","content"}] 用于渲染
+if "history" not in st.session_state:
+    st.session_state["history"] = []       # [{"user"}] 用于检索拼接
+
+for msg in st.session_state["messages"]:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        if msg.get("materials"):
+            with st.expander(f"📎 相关材料（{len(msg['materials'])} 条）", expanded=False):
+                for i, (src, head) in enumerate(msg["materials"], 1):
+                    st.markdown(f"**[{i}]** {src}")
+                    st.caption(head)
+
+prompt = st.chat_input("问点什么，比如：转专业需要什么条件")
+
+if prompt:
+    st.session_state["messages"].append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # 检索拼接用的历史：只记用户说了什么
+    st.session_state["history"].append({"user": prompt})
+    st.session_state["history"] = st.session_state["history"][-5:]
+
+    with st.chat_message("assistant"):
+        # ---------- 1. 闲聊 ----------
+        if judge.is_smalltalk(prompt):
+            st.markdown(judge.SMALLTALK_REPLY)
+            st.session_state["messages"].append(
+                {"role": "assistant", "content": judge.SMALLTALK_REPLY}
             )
-        st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
-        show_feedback_block(question, context="offtopic")
-        st.stop()
+            show_feedback_block(prompt, context="chat")
+            st.stop()
 
-    # 记对话历史。**只记用户说了什么**，不记答案——
-    # 检索拼接只需要知道「上一轮问的是什么」，答案有 800 字，塞进去只会污染语义。
-    #
-    # 为什么要判 question != _last_q：Streamlit 每次交互都会重跑整个脚本，
-    # 不判的话同一个问题会被重复记很多次。
-    if "history" not in st.session_state:
-        st.session_state["history"] = []
-    if question != st.session_state.get("_last_q"):
-        st.session_state["_last_q"] = question
-        st.session_state["history"].append({"user": question})
-        st.session_state["history"] = st.session_state["history"][-5:]   # 只留最近 5 轮
+        # ---------- 2. 完全无关 ----------
+        if refusal_kind(prompt) == "off_topic":
+            joke = fun_reply(prompt) or pick_choice(prompt)
+            if joke:
+                st.markdown(f"### {joke}")
+                st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
+                out = joke
+            else:
+                out = ("这个我真答不了 😅\n\n"
+                       "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。")
+                st.info(out)
+            st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
+            st.session_state["messages"].append({"role": "assistant", "content": out})
+            show_feedback_block(prompt, context="offtopic")
+            st.stop()
 
-    # 看用户提供了多少信息 —— 决定后面用哪种回答方式
-    intent = intake.detect_intent(question)
-    slots = intake.extract_slots(question, intent) if intent else {}
-    missing = intake.missing_slots(intent, slots) if intent else []
-
-    with st.spinner("检索中…"):
-        results, best = retrieve(question, k)
-
-    st.subheader("① 检索结果")
-    cols = st.columns([1, 1, 1])
-    cols[0].metric("最高相似度", f"{best:.3f}")
-    cols[1].metric("召回条数", len(results))
-    cols[2].metric("来源文件", len({r["meta"]["source"] for r in results}))
-
-    # 十条资料收进一个大集合里，叫「相关材料」。
-    #
-    # 为什么不再一条一个折叠：手机上十条各占一行折叠头，光标题就占满一屏，
-    # 把下面的答案挤没了。收成一个集合，用户想看材料时一次点开，
-    # 不想看时整块只占一行。
-    with st.expander(f"📎 相关材料（{len(results)} 条，点开查看）", expanded=False):
-        for i, r in enumerate(results, 1):
-            meta, doc = r["meta"], r["doc"]
-            st.markdown(f"**[{i}]** {meta['source'].replace('.txt', '')}")
-            st.text(doc)
-            if i < len(results):
-                st.divider()
-
-    st.subheader("② 回答")
-
-    # 让用户知道系统是怎么理解他的问题的（透明度）。
-    # 这也是产品判断的落地：用户不提供信息时，系统不硬编结论，而是说明缺什么。
-    if intent:
-        if slots and not missing:
-            st.caption(f"识别到你在问「{intent}」，信息齐全 → 直接给判断")
-        elif slots:
-            st.caption(f"识别到你在问「{intent}」，还差「{'、'.join(missing)}」→ 先列要求")
-        else:
-            st.caption(f"识别到你在问「{intent}」→ 先列要求，需要时再补信息")
-
-    def show_refusal(reason: str):
-        """拒答时的完整交代：说不知道 → 说为什么 → **给能立刻动手的下一步**。
-
-        三档话术（见 refusal_kind）：
-          教务问题查不到   → 详细指路 + 收录范围
-          校园事务不归教务处 → 指路到对应部门
-          完全无关         → 轻松一句，别摆公事公办的脸
-        """
-        kind = refusal_kind(question)
-
-        if kind == "off_topic":
-            # 完全无关的问题：不摆架子，也不用道歉一长串。
-            # 用户问「吃什么」被回一句「不在我收录的教务文件里」是很扫兴的。
-            st.info(
-                "这个我真答不了 😅\n\n"
-                "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。"
-                "聊天和别的领域我不行。\n\n"
-                "试试问我：**转专业要什么条件** · **绩点2.1能拿学位吗** · **挂科了怎么办**"
-            )
-            return
-
-        if kind == "campus":
-            st.warning(
-                "**这类事不归教务处管**，所以我的资料里没有。\n\n"
-                "但我可以告诉你该找谁。"
-            )
-        else:
-            st.warning(f"**这个问题不在我收录的教务文件里。**\n\n{reason}")
-
-        st.markdown("#### 你可以去这些地方查")
-        for title, steps in suggest_where(question):
-            st.markdown(f"**{title}**")
-            for s in steps:
-                if s.strip():
-                    st.markdown(f"- {s}")
-
-        # 这条从正文挪进折叠：它是"解释我为什么答不了"，不是用户要的答案。
-        # 顺带修掉过时的数字（原来写 73 份 / 20 万字，现在 146 份 / 46.7 万字）。
-        with st.expander("我收录了哪些文件", expanded=False):
-            st.markdown(
-                "学籍 · 学位 · 学分认定 · 辅修 / 微专业 · 转专业 · 重修 · "
-                "本硕连读 · 课程设置\n\n"
-                "共 146 份文件、约 46.7 万字，全部来自西安科技大学教务处公开文件，"
-                "不含任何个人信息。"
-            )
-
-    # 判定只看「资料够不够」，不看相似度分数。
-    #
-    # 0.60 那道闸门 2026-11-06 拆掉了。起因：问「我想服兵役」，向量分只有 0.544，
-    # 被闸门直接拒——但《学籍管理规定》里写着「应征参加解放军，保留学籍至退役后2年」，
-    # 判断层也能一字不差地摘出这句。分数低不等于没答案，只说明问法和文档用词不一样。
-    # 实测全量走判断层：答非所问 3→0，该拒没拒 2→0，总分不降。见 docs/v8。
-    if best >= judge.FAST_PATH:
-        can_answer = True
-    else:
-        # 判断层要看**拼接后的问题**。
+        # ---------- 3. 正常流程 ----------
+        # **先判断这轮是不是在承接上一轮，再算 intent。**
         #
-        # 用户回答追问时说的是「大三，计科，剩下的问题全都是无」——
-        # 把它原样喂给判断层，模型不知道在判断什么，只能答「资料不够」。
-        # 拼上上一轮的「转专业条件」就清楚了。
-        judge_q = question
-        _hist = st.session_state.get("history", [])
-        # **不要在这里重复判断一次「是否承接」。**
-        # search_mod.search() 内部已经判过一次了（它要决定拼不拼上下文）。
-        # 同一个判断调两次 LLM = 白多等 2 秒。这里按 (上一轮, 这一轮) 缓存。
-        if _hist:
-            _ck = (_hist[-1].get("user", ""), question)
+        # 踩过的坑：第一轮问「转专业要什么条件」，第二轮答「大三，绩点2.8」。
+        # 拿原句算 intent 的话，它会因为「绩点」二字被识别成「学位」问题——
+        # 用户问转专业，它答能不能拿学位证。
+        # 拼上上一轮（「转专业要什么条件 大三，绩点2.8」）才是对的。
+        _hist_all = st.session_state["history"]
+        followup = False
+        prev_q = ""
+        if len(_hist_all) >= 2:
+            prev_q = _hist_all[-2].get("user", "")
+            _ck = (prev_q, prompt)
             if st.session_state.get("_fu_key") != _ck:
                 st.session_state["_fu_key"] = _ck
                 st.session_state["_fu_val"] = search_mod.is_followup(
-                    question, _hist, get_embed_client(), CHAT_MODEL
+                    prompt, _hist_all[:-1], get_embed_client(), CHAT_MODEL
                 )
-            if st.session_state["_fu_val"]:
-                judge_q = f"{_hist[-1].get('user', '')} {question}"
-        with st.spinner("确认资料是否够用…"):
-            ok = judge.check_answerable(
-                judge_q, build_context(results), get_judge_client(), judge.JUDGE_MODEL
-            )
-        if ok:
-            can_answer = True
-            if best < judge.DEFAULT_MIN_SCORE:
-                st.info(
-                    f"相似度只有 {best:.3f}（低于旧阈值 {judge.DEFAULT_MIN_SCORE}），"
-                    f"但模型在资料里找到了能回答的依据。"
-                )
-        else:
-            show_refusal(
-                f"检索到的内容和问题相关（相似度 {best:.3f}），"
-                f"但资料里没有能直接回答的具体内容。"
-            )
-            can_answer = False
+            followup = bool(st.session_state["_fu_val"])
 
-    if not can_answer:
-        # 拒答之后也要给反馈入口——这类"它该答却没答"的情况，恰恰是最该被记下来的
-        show_feedback_block(question, best, context="refuse")
+        effective = f"{prev_q} {prompt}" if followup else prompt
+        intent = intake.detect_intent(effective)
+        slots = intake.extract_slots(effective, intent) if intent else {}
+        missing = intake.missing_slots(intent, slots) if intent else []
 
-    if can_answer:
-        # 引用区先显示：检索完就有，不用等生成
-        st.markdown("**📎 参考资料**（答案里的 `[1][2]` 对应这里）")
-        for i, r in enumerate(results, 1):
-            src = r["meta"]["source"].replace(".txt", "")
-            head = r["doc"].replace("\n", " ").strip()[:90]
-            st.markdown(f"**[{i}]** 《{src}》  \n<span style='color:gray'>{head}…</span>",
-                        unsafe_allow_html=True)
+        with st.spinner("检索中…"):
+            results, best = retrieve(prompt, k)
 
-        # 数据版本提示（防误导：2024 级方案不等于菁英班方案）
-        note = data_version_note(results)
-        if note:
-            st.caption(f"⚠️ {note}")
+        materials = [
+            (r["meta"]["source"].replace(".txt", ""),
+             r["doc"].replace("\n", " ").strip()[:80] + "…")
+            for r in results
+        ]
 
-        st.divider()
+        if intent:
+            if slots and not missing:
+                st.caption(f"识别到你在问「{intent}」，信息齐全 → 直接给判断")
+            elif slots:
+                st.caption(f"识别到你在问「{intent}」，还差「{'、'.join(missing)}」→ 先列要求")
+            else:
+                st.caption(f"识别到你在问「{intent}」→ 先列要求，需要时再补信息")
 
-        if st.button("生成回答", type="primary"):
-            prompt = build_prompt(question, build_context(results), intent, slots, missing)
-            placeholder = st.empty()
-            acc = ""
-            try:
-                gen = stream_via_gateway(prompt) if "网关" in backend else stream_direct(prompt)
-                for piece in gen:
-                    acc += piece
-                    placeholder.markdown(acc + "▌")
-
-                # 后处理 1：模型没标 [n] 就在末尾列出来源
-                final = append_sources(acc, results)
-                placeholder.markdown(final)
-
-                # 后处理 2：轻量校验（小数 + 带单位数字）
-                missing = verify_numbers(final, results)
-                if missing:
-                    st.warning(
-                        f"⚠️ 答案里这些数字在资料里没找到，**可能不准确**："
-                        f"{'、'.join(missing[:6])}"
+        # 判断层
+        can_answer = True
+        if best < judge.FAST_PATH:
+            judge_q = prompt
+            _hist = st.session_state["history"]
+            if len(_hist) >= 2:
+                _ck = (_hist[-2].get("user", ""), prompt)
+                if st.session_state.get("_fu_key") != _ck:
+                    st.session_state["_fu_key"] = _ck
+                    st.session_state["_fu_val"] = search_mod.is_followup(
+                        prompt, _hist[:-1], get_embed_client(), CHAT_MODEL
                     )
-                else:
-                    st.caption("✅ 答案里的关键数字都能在资料里对上")
+                if st.session_state["_fu_val"]:
+                    judge_q = f"{_hist[-2].get('user', '')} {prompt}"
+            with st.spinner("确认资料是否够用…"):
+                ok = judge.check_answerable(
+                    judge_q, build_context(results), get_judge_client(), judge.JUDGE_MODEL
+                )
+            if not ok:
+                can_answer = False
 
-                st.caption(f"生成后端：{backend} · 回答 {len(final)} 字")
-            except Exception as e:  # noqa: BLE001
-                placeholder.empty()
-                st.error(f"生成失败：{type(e).__name__}: {str(e)[:200]}")
-                st.info("如果选了 P1 网关，确认它正在 127.0.0.1:6066 运行。")
+        if not can_answer:
+            kind = refusal_kind(prompt)
+            if kind == "campus":
+                st.warning("**这类事不归教务处管**，所以我的资料里没有。\n\n但我可以告诉你该找谁。")
+            else:
+                st.warning(f"**这个问题不在我收录的教务文件里。**\n\n"
+                           f"检索到的内容和问题相关（相似度 {best:.3f}），但资料里没有能直接回答的具体内容。")
+            st.markdown("#### 你可以去这些地方查")
+            for title, steps in suggest_where(prompt):
+                st.markdown(f"**{title}**")
+                for s in steps:
+                    if s.strip():
+                        st.markdown(f"- {s}")
+            with st.expander("我收录了哪些文件", expanded=False):
+                st.markdown(
+                    "学籍 · 学位 · 学分认定 · 辅修 / 微专业 · 转专业 · 重修 · "
+                    "本硕连读 · 课程设置\n\n共 146 份文件、约 46.7 万字，全部来自"
+                    "西安科技大学教务处公开文件，不含任何个人信息。"
+                )
+            head = "这个问题的答案不在我收录的教务文件里。"
+            st.session_state["messages"].append({"role": "assistant", "content": head})
+            show_feedback_block(prompt, best, context="refuse")
+            st.stop()
 
-        # 答完之后也给反馈——和拒答、闲聊共用同一块。
-        show_feedback_block(question, best, context="answer")
+        # 生成
+        # **传 effective 而不是 prompt。**
+        # 用户第二轮说「大三，绩点2.8」，如果只把这个当成"问题"，
+        # 模型不知道他在问什么，会从 10 条资料里随便挑一个（比如学位）。
+        # 拼上上一轮的「转专业要什么条件」它才明白这是在补充信息。
+        prompt_text = build_prompt(effective, build_context(results), intent, slots, missing)
+        placeholder = st.empty()
+        acc = ""
+        try:
+            gen = stream_via_gateway(prompt_text) if "网关" in backend else stream_direct(prompt_text)
+            for piece in gen:
+                acc += piece
+                placeholder.markdown(acc + "▌")
+
+            final = append_sources(acc, results)
+            placeholder.markdown(final)
+
+            miss = verify_numbers(final, results)
+            if miss:
+                st.warning(f"⚠️ 答案里这些数字在资料里没找到，**可能不准确**：{'、'.join(miss[:6])}")
+            else:
+                st.caption("✅ 答案里的关键数字都能在资料里对上")
+        except Exception as e:  # noqa: BLE001
+            placeholder.empty()
+            st.error(f"生成失败：{type(e).__name__}: {str(e)[:200]}")
+            final = "生成失败，请重试。"
+            st.stop()
+
+        with st.expander(f"📎 相关材料（{len(materials)} 条）", expanded=False):
+            for i, (src, head) in enumerate(materials, 1):
+                st.markdown(f"**[{i}]** {src}")
+                st.caption(head)
+
+        st.session_state["messages"].append(
+            {"role": "assistant", "content": final, "materials": materials}
+        )
+        show_feedback_block(prompt, best, context="answer")
 
 st.divider()
 st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")

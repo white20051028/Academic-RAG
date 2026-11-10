@@ -46,26 +46,26 @@ def test_空字符串当闲聊():
 # ---------------------------------------------------------------- 判定解析
 
 
-def test_能且给了依据():
-    assert judge.parse_verdict("能 | 依据：学生可以在大二申请转专业") is True
+def test_够且给了依据():
+    assert judge.parse_verdict("够 | 依据：学生可以在大二申请转专业") is True
 
 
-def test_能不能没有依据():
-    """只说了「能」但没摘出依据 —— 不算。
+def test_够但没有依据():
+    """只说了「够」但没摘出依据 —— 不算。
 
     模型经常这样偷懒：看到一点相关内容就说能。要求它摘依据，
     是逼它真的在资料里找过。
     """
-    assert judge.parse_verdict("能") is False
+    assert judge.parse_verdict("够") is False
 
 
-def test_不能说():
-    assert judge.parse_verdict("不能 | 原因：资料里没有这个信息") is False
+def test_不够说():
+    assert judge.parse_verdict("不够 | 原因：资料里没有这个信息") is False
 
 
-def test_能但是其实是不能():
-    """开头是「能」但整句是转折，且没给依据 —— 不能误判为能。"""
-    assert judge.parse_verdict("能理解你的问题，但是资料里没有") is False
+def test_开头像够但其实不够():
+    """开头像「够」但没给依据 —— 不能误判。"""
+    assert judge.parse_verdict("够呛，资料里没有") is False
 
 
 def test_空回答():
@@ -123,12 +123,12 @@ class _FakeClient:
 
 
 def test_check_answerable_正常返回能():
-    client = _FakeClient("能 | 依据：绩点 3.0 以上可以转")
+    client = _FakeClient("够 | 依据：绩点 3.0 以上可以转")
     assert judge.check_answerable("能转专业吗", "资料", client, "fake-model") is True
 
 
 def test_check_answerable_正常返回不能():
-    client = _FakeClient("不能 | 原因：没这条规定")
+    client = _FakeClient("不够 | 原因：没这条规定")
     assert judge.check_answerable("能转专业吗", "资料", client, "fake-model") is False
 
 
@@ -155,7 +155,7 @@ def test_check_answerable_调的是传入的模型名():
             seen.update(kwargs)
 
             class _Msg:
-                content = "能 | 依据：x"
+                content = "够 | 依据：x"
 
             class _Choice:
                 message = _Msg()
