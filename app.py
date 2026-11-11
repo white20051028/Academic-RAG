@@ -554,21 +554,53 @@ def data_version_note(results) -> str | None:
     return None
 
 
-def stream_via_gateway(prompt: str):
-    """走 P1 网关（有降级、限流、计量）。
-
-    鉴权用 GATEWAY_API_KEY，不是 SILICONFLOW_API_KEY —— 用错就是 401。
-    """
+def _gateway_stream(prompt: str):
+    """真正的网关调用。抽出来是为了让外层能捕获连接失败后降级。"""
     with httpx.stream(
         "POST",
         f"{GATEWAY}/chat",
-        json={"query": prompt, "history_len": 0, "stream_format": "text"},
+        json={
+            # **完整 prompt 必须放 sys_prompt，不能放 query。**
+            #
+            # 网关拼 messages 是 [system=sys_prompt, user=query]，
+            # 而 sys_prompt 默认是「你是一个简洁的助手」。把 P2 的
+            # 「只根据资料回答」塞进 query，模型会听 system 的话，
+            # 忽略资料直接自由发挥——实测输出了「每个学校差异很大」这种通用回答。
+            "sys_prompt": prompt,
+            "query": "请按上述要求回答。",
+            "history_len": 0,
+            "stream_format": "text",
+            # 不指定就用降级链第一顺位的 siliconflow（免费 7B），
+            # 而 7B 在「引用条文」上会编理由（把「大三」说成「毕业班」）。
+            "provider": "Deepseek",
+        },
         headers={"X-API-Key": read_gateway_key()},
         timeout=90,
     ) as r:
         r.raise_for_status()
         for piece in r.iter_text():
             yield piece
+
+
+def stream_via_gateway(prompt: str):
+    """走 P1 网关（有降级、限流、计量）。网关挂了自动退回直连。
+
+    鉴权用 GATEWAY_API_KEY，不是 SILICONFLOW_API_KEY —— 用错就是 401。
+
+    **必须指定 provider。** 网关的降级链第一顺位是 siliconflow（免费 7B），
+    不指定就会用 7B 生成——而 7B 在「引用条文」这类问题上会编理由
+    （实测把「大三」说成「毕业班」）。这里显式要 Deepseek。
+
+    **为什么还要自动退回直连**：网关是本地起的另一个进程，
+    它没启动时这个页面不该整个坏掉。远端有降级（Deepseek→siliconflow），
+    本地也有降级（网关→直连），两层不是重复：一层管「模型挂了」，
+    一层管「网关自己挂了」。
+    """
+    try:
+        yield from _gateway_stream(prompt)
+    except (httpx.ConnectError, httpx.ConnectTimeout, httpx.HTTPStatusError) as e:
+        st.warning(f"网关不可用（{type(e).__name__}），本次改走直连。")
+        yield from stream_direct(prompt)
 
 
 def stream_direct(prompt: str):
@@ -684,11 +716,12 @@ def show_feedback_block(question: str, best_sim: float = 0.0, context: str = "an
 # ---------------- 对话历史 ----------------
 
 if "messages" not in st.session_state:
-    st.session_state["messages"] = []      # [{"role","content"}] 用于渲染
+    st.session_state["messages"] = []      # [{"role","content","question","best"}] 用于渲染
 if "history" not in st.session_state:
     st.session_state["history"] = []       # [{"user"}] 用于检索拼接
 
-for msg in st.session_state["messages"]:
+_msgs = st.session_state["messages"]
+for msg in _msgs:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg.get("materials"):
@@ -713,9 +746,11 @@ if prompt:
         if judge.is_smalltalk(prompt):
             st.markdown(judge.SMALLTALK_REPLY)
             st.session_state["messages"].append(
-                {"role": "assistant", "content": judge.SMALLTALK_REPLY}
+                {"role": "assistant", "content": judge.SMALLTALK_REPLY, "question": prompt, "best": 0.0}
             )
-            show_feedback_block(prompt, context="chat")
+            show_feedback_block(
+                prompt, 0.0, context=f"hist_{len(st.session_state['messages'])}"
+            )
             st.stop()
 
         # ---------- 2. 先判断这轮是不是在承接上一轮 ----------
@@ -753,8 +788,12 @@ if prompt:
                        "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。")
                 st.info(out)
             st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
-            st.session_state["messages"].append({"role": "assistant", "content": out})
-            show_feedback_block(prompt, context="offtopic")
+            st.session_state["messages"].append(
+                {"role": "assistant", "content": out, "question": prompt, "best": 0.0}
+            )
+            show_feedback_block(
+                prompt, 0.0, context=f"hist_{len(st.session_state['messages'])}"
+            )
             st.stop()
 
         # ---------- 4. 正常流程 ----------
@@ -823,8 +862,12 @@ if prompt:
                     "西安科技大学教务处公开文件，不含任何个人信息。"
                 )
             head = "这个问题的答案不在我收录的教务文件里。"
-            st.session_state["messages"].append({"role": "assistant", "content": head})
-            show_feedback_block(prompt, best, context="refuse")
+            st.session_state["messages"].append(
+                {"role": "assistant", "content": head, "question": prompt, "best": best}
+            )
+            show_feedback_block(
+                prompt, best, context=f"hist_{len(st.session_state['messages'])}"
+            )
             st.stop()
 
         # 生成
@@ -861,9 +904,31 @@ if prompt:
                 st.caption(head)
 
         st.session_state["messages"].append(
-            {"role": "assistant", "content": final, "materials": materials}
+            {"role": "assistant", "content": final, "materials": materials,
+                 "question": prompt, "best": best}
         )
-        show_feedback_block(prompt, best, context="answer")
+
+# ---------------- 反馈区 ----------------
+#
+# **必须放在文件末尾，`if prompt:` 块之后。**
+#
+# 2026-11-10 的 bug（用户反馈"最近两次反馈没能收录"，11-09 之后一条都没新增）：
+#   版本 A：写在 `if prompt:` 里 → 点击按钮触发重跑 → chat_input 已清空
+#           → prompt 是 None → 整个 if 块不执行 → 按钮消失、log_feedback 不调用。
+#           用户点了没反应，文件里一条也不多。
+#   版本 B：写在 for 循环里 → 提问当次不走循环（新消息是在 if 块里当场渲染的），
+#           → 用户答完看到的页面上根本没有反馈按钮。
+#   版本 C：写在循环外、但在 `if prompt:` 之前 → 那时 _msgs 还是上一轮的内容，
+#           刚 append 的新消息看不到。
+#
+# 三个位置都不对，只有这里对：这次 run 结束时 _msgs 一定是最新的，
+# 不管它是"刚答完的新消息"还是"重跑时从历史里读出来的"。
+if _msgs and _msgs[-1]["role"] == "assistant":
+    show_feedback_block(
+        _msgs[-1].get("question", ""),
+        _msgs[-1].get("best", 0.0),
+        context=f"hist_{len(_msgs)}",
+    )
 
 st.divider()
 st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")
