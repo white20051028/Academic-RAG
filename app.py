@@ -737,10 +737,33 @@ if "messages" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state["history"] = []       # [{"user"}] 用于检索拼接
 
+def render_answer(text: str) -> None:
+    """渲染一条回答：结论直接显示，细则折叠。
+
+    **两处都必须调这个函数**：当次生成的渲染、历史消息的渲染。
+    2026-11-13 踩过：拆分逻辑只写在「当次生成」那段，用户点反馈触发重跑后
+    走的是历史渲染（st.markdown 整串），折叠失效、细则变成一大坨。
+
+    「挂科了怎么办」这类问题细则有 700 多字，折叠和不折叠是两种体验。
+    """
+    concl, sep, detail = text.partition("===细则===")
+    if sep:
+        st.markdown(concl.strip())
+        with st.expander("展开看详细规定", expanded=False):
+            st.markdown(detail.strip().lstrip("=").strip())
+    else:
+        # 模型没按格式输出（偶尔），原样显示，别把答案吞了
+        st.markdown(text)
+
+
 _msgs = st.session_state["messages"]
 for msg in _msgs:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            render_answer(msg["content"])
+        else:
+            st.markdown(msg["content"])
+
         if msg.get("materials"):
             with st.expander(f"📎 相关材料（{len(msg['materials'])} 条）", expanded=False):
                 for i, (src, head) in enumerate(msg["materials"], 1):
@@ -913,17 +936,11 @@ if prompt:
 
             final = append_sources(acc, results)
 
-            # 按 ===细则=== 拆成「结论」和「细则」。
-            # 真实反馈：「答的太多太繁琐了，用户看到这么长的内容会抵触不想看的」。
-            # 结论直接显示，细则折起来——想看的人点开，不想看的就停在结论。
-            _concl, _sep, _detail = final.partition("===细则===")
-            if _sep:
-                placeholder.markdown(_concl.strip())
-                with st.expander("展开看详细规定", expanded=False):
-                    st.markdown(_detail.strip().lstrip("=").strip())
-            else:
-                # 模型没按格式输出（偶尔发生），原样显示，别把答案吞了
-                placeholder.markdown(final)
+            # 和「历史渲染」共用同一个 render_answer——
+            # 2026-11-13 踩过：拆分逻辑只写在这里，用户点反馈触发重跑后
+            # 走历史渲染（st.markdown 整串），折叠失效变成一大坨。
+            placeholder.empty()
+            render_answer(final)
 
             miss = verify_numbers(final, results)
             if miss:
