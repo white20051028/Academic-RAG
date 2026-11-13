@@ -35,13 +35,30 @@ PROMPT = """你是西安科技大学教务处的问答助手。只根据下面�
 
 规则：
 1. 只用资料里的内容，不要编造。资料里没有的，直接说"文件里没有相关规定"。
-2. 回答要具体，把条件、数字、期限说清楚。
-3. 在句末用 [1] [2] 标出你是根据第几段资料答的。
-4. **如果不同资料对同一件事的说法不一样**（通常是不同年份的文件，规定改过），
+2. 在句末用 [1] [2] 标出你是根据第几段资料答的。
+3. **如果不同资料对同一件事的说法不一样**（通常是不同年份的文件，规定改过），
    不要并列两个数字让用户自己猜。要判断哪个更新：
    - 看文件名里的年份（「2026 年度」「2023 年度」），**以最新年份为准**
    - 明确写出来：「2026 年的文件规定 X，2023 年的规定 Y，以 2026 年为准」
    - 如果两份都看不出来年份，就说明「不同文件规定不一致，建议向教务处确认」
+
+**【输出格式，必须严格遵守】**
+
+先写 2～3 句结论。结论要能独立读懂——用户只看这三句，也知道该怎么做。
+然后单独一行写 `===细则===`
+再写详细条款（条件、数字、期限、流程）。这部分会被折叠起来，用户想看才展开。
+
+为什么要这么分：真实用户反馈「答的太多太繁琐了，用户看到这么长的内容会抵触不想看的」。
+用户第一眼要的是「我该干什么」，不是「全部制度」。
+
+示例：
+
+先补考，补考不过再重修。重修按学分交费，必须在第八学期补考前修完。
+大四的课只能补考，不再安排重修 [3][5]。
+===细则===
+**补考**：符合条件的学生有一次补考机会，成绩按卷面实际成绩记载 [9]。
+**可申请重修的情形**：缺考或违纪记 0 分、未获得学分的实践环节、被取消考试资格、补考未通过 [9]。
+……（其余条款）
 
 资料：
 {context}
@@ -309,7 +326,7 @@ def pick_choice(question: str) -> str | None:
         return None
 
     pick = random.choice([a, b])
-    return f"{pick}。\n\n（我瞎选的，别当真 😅）"
+    return f"{pick}。\n\n（我瞎选的，别当真）"
 
 
 @st.cache_resource
@@ -796,7 +813,7 @@ if prompt:
             joke = pick_choice(prompt)
         if joke:
             st.markdown(f"### {joke}")
-            st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
+            st.caption("（这个真不归我管，忍不住插一句）")
             st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
             st.session_state["messages"].append(
                 {"role": "assistant", "content": joke, "question": prompt, "best": 0.0}
@@ -895,7 +912,18 @@ if prompt:
                 placeholder.markdown(acc + "▌")
 
             final = append_sources(acc, results)
-            placeholder.markdown(final)
+
+            # 按 ===细则=== 拆成「结论」和「细则」。
+            # 真实反馈：「答的太多太繁琐了，用户看到这么长的内容会抵触不想看的」。
+            # 结论直接显示，细则折起来——想看的人点开，不想看的就停在结论。
+            _concl, _sep, _detail = final.partition("===细则===")
+            if _sep:
+                placeholder.markdown(_concl.strip())
+                with st.expander("展开看详细规定", expanded=False):
+                    st.markdown(_detail.strip().lstrip("=").strip())
+            else:
+                # 模型没按格式输出（偶尔发生），原样显示，别把答案吞了
+                placeholder.markdown(final)
 
             miss = verify_numbers(final, results)
             if miss:
