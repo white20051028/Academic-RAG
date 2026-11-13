@@ -25,6 +25,7 @@ CHAT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 # 判断层单独一个模块：线上和评测共用同一份逻辑，避免"测的"和"跑的"分叉
 sys.path.insert(0, str(ROOT / "tools"))
+import agent as agent_mod  # noqa: E402
 import intake  # noqa: E402
 import judge  # noqa: E402
 import paths  # noqa: E402
@@ -911,10 +912,20 @@ if prompt:
             else:
                 st.caption(f"识别到你在问「{intent}」→ 先列要求，需要时再补信息")
 
-        # 判断层
+        # 判断层：三分类 + C 的两个子类
+        #
+        # A  = 和学校完全无关        → 轻松话术，不生成
+        # B  = 校内事务，资料能答     → 正常生成
+        # C1 = 校内事务，资料里根本没有 → 直接指路（再查也是白查）
+        # C2 = 校内事务，有内容但缺一块 → Agent 兜底（值得多查一次）
+        #
+        # **C1 和 C2 必须分开**：实测 57 条里 C 占 12%，但其中 7 条是「资料完全没有」，
+        # 让它们进 Agent 等于让用户白等 14 秒、成本涨 8 倍，最后还是同一句指路。
         can_answer = True
+        judge_kind = "B"
+        judge_reason = ""
+        judge_q = prompt
         if best < judge.FAST_PATH:
-            judge_q = prompt
             _hist = st.session_state["history"]
             if len(_hist) >= 2:
                 _ck = (_hist[-2].get("user", ""), prompt)
@@ -926,19 +937,50 @@ if prompt:
                 if st.session_state["_fu_val"]:
                     judge_q = f"{_hist[-2].get('user', '')} {prompt}"
             with st.spinner("确认资料是否够用…"):
-                ok = judge.check_answerable(
+                judge_kind, judge_reason = judge.classify(
                     judge_q, build_context(results), get_judge_client(), judge.JUDGE_MODEL
                 )
-            if not ok:
-                can_answer = False
 
-        if not can_answer:
-            kind = refusal_kind(prompt)
-            if kind == "campus":
-                st.warning("**这类事不归教务处管**，所以我的资料里没有。\n\n但我可以告诉你该找谁。")
+        # A 类：和学校完全无关 → 轻松话术
+        if judge_kind == "A":
+            out = ("这个我真答不了。\n\n"
+                   "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。")
+            st.info(out)
+            st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
+            st.session_state["messages"].append(
+                {"role": "assistant", "content": out, "question": prompt, "best": best}
+            )
+            show_feedback_block(
+                prompt, best, context=f"hist_{len(st.session_state['messages'])}"
+            )
+            st.stop()
+
+        # C2 类：有内容但缺一块 → Agent 兜底
+        if judge_kind == "C2":
+            with st.spinner("资料不够，正在多查几次…"):
+                out = agent_mod.agent_loop(
+                    question=judge_q,
+                    results=results,
+                    context=build_context(results),
+                    processed_dir=ROOT / "data" / "processed",
+                    judge_classify=judge.classify,
+                    judge_client=get_judge_client(),
+                    judge_model=judge.JUDGE_MODEL,
+                    search_fn=lambda q: retrieve(q, k, history=[]),
+                )
+            if out["ok"]:
+                # 找到补充资料了，用扩充后的 context 生成
+                results = results  # 材料展示仍用首轮检索结果
+                extra_context = out["context"]
+                st.caption(f"补充了 {len(out['steps'])} 步后找到答案")
+                st.session_state["_extra_ctx"] = extra_context
             else:
-                st.warning(f"**这个问题不在我收录的教务文件里。**\n\n"
-                           f"检索到的内容和问题相关（相似度 {best:.3f}），但资料里没有能直接回答的具体内容。")
+                judge_kind = "C1"   # 兜底失败，走指路
+                judge_reason = out["note"]
+
+        if judge_kind in ("C1", "C2"):
+            _head = "**教务处公开文件里没有这个问题的答案。**"
+            st.warning(f"{_head}\n\n{judge_reason}" if judge_reason else _head)
             st.markdown("#### 你可以去这些地方查")
             for title, steps in suggest_where(prompt):
                 st.markdown(f"**{title}**")
@@ -951,7 +993,14 @@ if prompt:
                     "本硕连读 · 课程设置\n\n共 146 份文件、约 46.7 万字，全部来自"
                     "西安科技大学教务处公开文件，不含任何个人信息。"
                 )
-            head = "这个问题的答案不在我收录的教务文件里。"
+            head = "教务处公开文件里没有这个问题的答案。"
+            st.session_state["messages"].append(
+                {"role": "assistant", "content": head, "question": prompt, "best": best}
+            )
+            show_feedback_block(
+                prompt, best, context=f"hist_{len(st.session_state['messages'])}"
+            )
+            st.stop()
             st.session_state["messages"].append(
                 {"role": "assistant", "content": head, "question": prompt, "best": best}
             )
