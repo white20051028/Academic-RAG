@@ -776,20 +776,30 @@ if prompt:
 
         effective = f"{prev_q} {prompt}" if followup else prompt
 
-        # ---------- 3. 完全无关（用 effective 判断，不是原句） ----------
-        if refusal_kind(effective) == "off_topic":
-            joke = fun_reply(prompt) or pick_choice(prompt)
-            if joke:
-                st.markdown(f"### {joke}")
-                st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
-                out = joke
-            else:
-                out = ("这个我真答不了 😅\n\n"
-                       "我只懂西安科技大学的教务政策——学籍、转专业、学分、毕业这些。")
-                st.info(out)
+        # ---------- 3. 彩蛋：只拦「纯娱乐」，不拦「可能相关」 ----------
+        #
+        # 2026-11-13 真实翻车：用户问「我想大学期间服兵役」，系统秒回
+        # 「这个我真答不了 😅 我只懂教务政策」。
+        # 但资料里《学籍管理规定》明明写着「应征参加解放军，保留学籍至退役后2年」。
+        #
+        # 根因是 11-10 加的「off_topic 秒拒」：为了让「吃什么」不扫兴，
+        # 我按关键词判断「这问题跟教务无关吗」，词表里没有「兵役」「上课」，
+        # 于是把有答案的问题也秒掉了。
+        #
+        # **秒拒省的 5 秒，远不如错杀的代价高**——用户会觉得系统坏了。
+        # 所以现在只有两种情况会秒回：
+        #   ① 命中 FUN_REPLIES 的固定彩蛋（吃什么/动漫/天气）
+        #   ② 明确是 off_topic 的「A 还是 B」二选一（梅西还是C罗）
+        # 其余一律走正常流程：检索 → 判断层。判断层本来就拒得准，只是慢几秒。
+        joke = fun_reply(prompt)
+        if not joke and refusal_kind(effective) == "off_topic":
+            joke = pick_choice(prompt)
+        if joke:
+            st.markdown(f"### {joke}")
+            st.caption("（这个真不归我管，纯粹忍不住插一句 😅）")
             st.markdown("**正经问题可以问我：** 转专业要什么条件 · 绩点2.1能拿学位吗 · 挂科了怎么办")
             st.session_state["messages"].append(
-                {"role": "assistant", "content": out, "question": prompt, "best": 0.0}
+                {"role": "assistant", "content": joke, "question": prompt, "best": 0.0}
             )
             show_feedback_block(
                 prompt, 0.0, context=f"hist_{len(st.session_state['messages'])}"
