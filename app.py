@@ -329,6 +329,46 @@ def pick_choice(question: str) -> str | None:
     return f"{pick}。\n\n（我瞎选的，别当真）"
 
 
+def version_line() -> str:
+    """页脚版本号。**改完代码要能一眼看出部署生效没。**
+
+    2026-11-13 用户提的：改完代码、重新部署，页面上看不出区别，
+    没法判断「是修好了」还是「还是旧版」。
+
+    两个信息：
+      vX.Y · 代码时间 —— 代码时间取 app.py 的修改时间，服务器上是上传时间
+                         （zip 解压会保留时间戳，所以它就是「这份代码是哪天的」）
+      commit         —— 本地有 .git 时显示短哈希；服务器是 zip 部署，没有 .git，就不显示
+
+    改代码时手动把 APP_VERSION 加一，配合代码时间，就能确认是否真的生效。
+    """
+    import datetime
+
+    APP_VERSION = "1.3"
+
+    try:
+        mtime = datetime.datetime.fromtimestamp(Path(__file__).stat().st_mtime)
+        stamp = mtime.strftime("%m-%d %H:%M")
+    except Exception:  # noqa: BLE001
+        stamp = "?"
+
+    line = f"版本 v{APP_VERSION} · 代码 {stamp}"
+
+    try:
+        import subprocess
+
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=ROOT, text=True, timeout=3, stderr=subprocess.DEVNULL,
+        ).strip()
+        if sha:
+            line += f" · {sha}"
+    except Exception:  # noqa: BLE001
+        pass
+
+    return line
+
+
 @st.cache_resource
 def get_embed_client():
     from openai import OpenAI
@@ -988,3 +1028,4 @@ if _msgs and _msgs[-1]["role"] == "assistant":
 st.divider()
 st.caption(f"数据来源：西安科技大学教务处公开文件 · 共 {get_retriever().size} 个检索片段")
 st.caption("⚠️ 本系统只覆盖制度类文件，**不含**师资名录、课表、成绩、宿舍/食堂信息")
+st.caption(version_line())
