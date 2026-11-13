@@ -43,8 +43,9 @@ SMALLTALK_CASES = ["你好", "在吗", "谢谢", "你是谁", "你能干什么",
 NOT_SMALLTALK_CASES = ["你好，转专业要什么条件", "我想问问绩点2.1能不能拿学位", "谢谢，那挂科了要重修吗"]
 
 
-def read_key() -> str:
-    return paths.read_env("SILICONFLOW_API_KEY")
+def read_key(name: str = "SILICONFLOW_API_KEY") -> str:
+    """读一把 key。默认硅基流动（embedding 用），传名字读别的（DeepSeek 判断层用）。"""
+    return paths.read_env(name)
 
 
 def load_set(path: Path) -> list[dict]:
@@ -104,9 +105,14 @@ def decide(question: str, results, sim: float, client) -> tuple[str, str]:
     if sim >= judge.FAST_PATH:
         return "answer", f"相似度 {sim:.3f} ≥ {judge.FAST_PATH}，直接答"
 
-    ok = judge.check_answerable(question, build_context(results), client, CHAT_MODEL)
-    return ("answer", f"判断层判能答（相似度 {sim:.3f}）") if ok else \
-           ("refuse_judge", f"判断层判资料不够（相似度 {sim:.3f}）")
+    # **和生产保持一致**：生产用 DeepSeek 做三分类（judge.JUDGE_MODEL），
+    # 这里也必须用同一个模型，否则评出来的数字和线上对不上。
+    # 早先这里用的是免费的 CHAT_MODEL（7B），判定会偏严。
+    kind, reason = judge.classify(question, build_context(results),
+                                  client, judge.JUDGE_MODEL)
+    if kind == "B":
+        return "answer", f"判断层 B（能答），相似度 {sim:.3f}"
+    return "refuse_judge", f"判断层 {kind}，相似度 {sim:.3f}：{reason[:40]}"
 
 
 def main():
@@ -116,8 +122,12 @@ def main():
 
     limit = next((int(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--limit=")), None)
 
-    client = OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
-    r = R.HybridRetriever(client, EMBED_MODEL)
+    # 检索用硅基流动（embedding + 向量库）；判断层用 DeepSeek。
+    # 两个 client 分开，因为 base_url 和 key 都不同——
+    # 混用会 404（模型名在另一家不存在）。
+    sf = OpenAI(api_key=read_key(), base_url="https://api.siliconflow.cn/v1")
+    ds = OpenAI(api_key=read_key("DEEPSEEK_API_KEY"), base_url=judge.JUDGE_BASE_URL)
+    r = R.HybridRetriever(sf, EMBED_MODEL)
 
     answer_items = load_set(ANSWER_SET)
     refuse_items = load_set(REFUSE_SET)
@@ -148,8 +158,8 @@ def main():
     def run_answer(item):
         """跑一条完整的判定链。并发执行，只返回结果不打印。"""
         q = item["q"]
-        res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
-        verdict, why = decide(q, res, sim, client)
+        res, sim = search_mod.search(r, q, 5, rewrite=True, client=sf, model=CHAT_MODEL)
+        verdict, why = decide(q, res, sim, ds)
         return {"q": q, "sim": sim, "verdict": verdict, "why": why, "hit": is_hit(item, res)}
 
     # 批量并发：每条内部已经有 4 个并发检索，这里再叠一层。
@@ -190,8 +200,8 @@ def main():
     print("=" * 60)
     def run_refuse(item):
         q = item["q"]
-        res, sim = search_mod.search(r, q, 5, rewrite=True, client=client, model=CHAT_MODEL)
-        verdict, why = decide(q, res, sim, client)
+        res, sim = search_mod.search(r, q, 5, rewrite=True, client=sf, model=CHAT_MODEL)
+        verdict, why = decide(q, res, sim, ds)
         return {"q": q, "verdict": verdict, "why": why}
 
     with ThreadPoolExecutor(max_workers=BATCH) as pool:
