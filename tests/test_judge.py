@@ -122,13 +122,13 @@ class _FakeClient:
         self.chat = _Chat()
 
 
-def test_check_answerable_正常返回能():
-    client = _FakeClient("够 | 依据：绩点 3.0 以上可以转")
+def test_check_answerable_B类算够():
+    client = _FakeClient("B | 依据：绩点 3.0 以上可以转")
     assert judge.check_answerable("能转专业吗", "资料", client, "fake-model") is True
 
 
-def test_check_answerable_正常返回不能():
-    client = _FakeClient("不够 | 原因：没这条规定")
+def test_check_answerable_C类算不够():
+    client = _FakeClient("C | 原因：没这条规定")
     assert judge.check_answerable("能转专业吗", "资料", client, "fake-model") is False
 
 
